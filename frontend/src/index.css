@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Fraunces", ui-serif, Georgia, serif;
+  --font-body: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+
+  --color-ink: #14213d;
+  --color-ink-2: #445069;
+  --color-ink-3: #7c88a0;
+  --color-paper: #f5f6f2;
+  --color-paper-2: #ececE5;
+  --color-card: #ffffff;
+  --color-brass: #c08552;
+  --color-brass-deep: #9c6b3f;
+  --color-sage: #6e8b5e;
+  --color-sage-bg: #eaf0e5;
+  --color-rust: #b84c3e;
+  --color-rust-bg: #f6e6e3;
+  --color-line: #dcdad0;
+}
+
+@layer base {
+  html {
+    background: var(--color-paper);
+  }
+  body {
+    font-family: var(--font-body);
+    color: var(--color-ink);
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
+  ::selection {
+    background: var(--color-brass);
+    color: white;
+  }
+}
+
+@layer components {
+  /* Signature "blueprint tick" rule used under section headings */
+  .tick-rule {
+    position: relative;
+    display: inline-block;
+  }
+  .tick-rule::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -8px;
+    width: 42px;
+    height: 3px;
+    background: var(--color-brass);
+  }
+
+  .scroll-thin::-webkit-scrollbar {
+    width: 6px;
+  }
+  .scroll-thin::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border-radius: 4px;
+  }
+}

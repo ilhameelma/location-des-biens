@@ -1,0 +1,250 @@
+version: "3.9"
+
+# ============================================================
+# SmartRent Platform — docker-compose.yml
+# Couvre : PostgreSQL (app + Airflow), MinIO, Kafka/Zookeeper,
+# Airflow, et une interface web pour Kafka.
+#
+# Ce fichier ne contient PAS encore le back-end / front-end :
+# ils restent en développement local (Phase 2) et seront ajoutés
+# ici en Phase 5 (conteneurisation finale).
+#
+# Démarrage : docker-compose up -d
+# Arrêt     : docker-compose down
+# Arrêt + suppression des volumes : docker-compose down -v
+# ============================================================
+
+services:
+
+  # ------------------------------------------------------------
+  # Base de données transactionnelle de l'application
+  # ------------------------------------------------------------
+  postgres:
+    image: postgres:16
+    container_name: smartrent_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smartrent_db
+      POSTGRES_USER: smartrent
+      POSTGRES_PASSWORD: smartrent_pwd
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/smartrent_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smartrent -d smartrent_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Stockage objet (photos de biens, documents contractuels)
+  # ------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: smartrent_minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: smartrent_admin
+      MINIO_ROOT_PASSWORD: smartrent_minio_pwd
+    ports:
+      - "9000:9000"   # API compatible S3
+      - "9001:9001"   # Console web (http://localhost:9001)
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Coordination pour Kafka
+  # ------------------------------------------------------------
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.0
+    container_name: smartrent_zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Broker de messages (événements métier : annonce, réservation,
+  # paiement...) — étape 10 du cahier des charges
+  # ------------------------------------------------------------
+  kafka:
+    image: confluentinc/cp-kafka:7.6.0
+    container_name: smartrent_kafka
+    restart: unless-stopped
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"       # accès depuis l'hôte (back-end en local)
+      - "29092:29092"     # accès interne entre conteneurs
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:29092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:29092
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Interface web pour visualiser les topics Kafka (pratique pour
+  # déboguer / démontrer le pipeline pendant la soutenance)
+  # ------------------------------------------------------------
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: smartrent_kafka_ui
+    restart: unless-stopped
+    depends_on:
+      - kafka
+    ports:
+      - "8082:8080"    # http://localhost:8082
+    environment:
+      KAFKA_CLUSTERS_0_NAME: smartrent
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Base de métadonnées dédiée à Airflow (séparée de smartrent_db
+  # pour ne jamais mélanger données applicatives et données
+  # d'orchestration)
+  # ------------------------------------------------------------
+  postgres_airflow:
+    image: postgres:16
+    container_name: smartrent_postgres_airflow
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: airflow
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow_pwd
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U airflow -d airflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Initialisation Airflow (créé la base + l'utilisateur admin,
+  # puis s'arrête — ce n'est pas un service qui tourne en continu)
+  # ------------------------------------------------------------
+  airflow-init:
+    image: apache/airflow:2.9.1
+    container_name: smartrent_airflow_init
+    depends_on:
+      postgres_airflow:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_pwd@postgres_airflow/airflow
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        airflow db migrate &&
+        airflow users create \
+          --username admin \
+          --password admin \
+          --firstname Admin \
+          --lastname SmartRent \
+          --role Admin \
+          --email admin@smartrent.local
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Interface web Airflow (http://localhost:8081, admin/admin)
+  # ------------------------------------------------------------
+  airflow-webserver:
+    image: apache/airflow:2.9.1
+    container_name: smartrent_airflow_webserver
+    restart: unless-stopped
+    depends_on:
+      - airflow-init
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_pwd@postgres_airflow/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    ports:
+      - "8081:8080"
+    command: webserver
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Ordonnanceur Airflow — déclenche les jobs Spark planifiés
+  # (nettoyage nocturne, agrégation vers le data warehouse)
+  # ------------------------------------------------------------
+  airflow-scheduler:
+    image: apache/airflow:2.9.1
+    container_name: smartrent_airflow_scheduler
+    restart: unless-stopped
+    depends_on:
+      - airflow-init
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_pwd@postgres_airflow/airflow
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    command: scheduler
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # (À activer en Phase 5 uniquement)
+  # ------------------------------------------------------------
+  # backend:
+  #   build: ./backend
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     DB_HOST: postgres
+  #     KAFKA_BROKER: kafka:29092
+  #     MINIO_ENDPOINT: minio:9000
+  #   depends_on:
+  #     - postgres
+  #     - kafka
+  #     - minio
+  #   networks:
+  #     - smartrent_net
+  #
+  # frontend:
+  #   build: ./frontend
+  #   ports:
+  #     - "3000:3000"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - smartrent_net
+
+networks:
+  smartrent_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  postgres_airflow_data:
+  minio_data:
