@@ -11,6 +11,18 @@ export const tokenStore = {
   clear: () => localStorage.removeItem(TOKEN_KEY),
 };
 
+// Construit l'URL WebSocket correspondant à un chemin API donné, en réutilisant
+// le même host/port que l'API REST (http -> ws, https -> wss).
+// Le token JWT est transmis en query param : un navigateur ne peut pas ajouter
+// de header Authorization à une connexion WebSocket.
+export function wsUrl(path: string): string {
+  const token = tokenStore.get();
+  const httpUrl = new URL(`${API_BASE_URL}${path}`);
+  httpUrl.protocol = httpUrl.protocol === "https:" ? "wss:" : "ws:";
+  if (token) httpUrl.searchParams.set("token", token);
+  return httpUrl.toString();
+}
+
 interface RequestOptions extends RequestInit {
   auth?: boolean; // ajoute le header Authorization si true (défaut: true)
 }
@@ -75,5 +87,7 @@ export const api = {
 // POST   /paiements                      -> PaiementOut (client)
 // POST   /avis                           -> AvisOut (client)
 // POST   /reclamations, GET /reclamations (admin)
-// GET/POST /conversations/{id}/messages
+// GET/POST /conversations                -> ConversationOut[] / ConversationOut (POST: client)
+// GET/POST /conversations/{id}/messages   -> MessageOut[] / MessageOut
+// WS       /conversations/ws/{id}?token=  -> canal temps réel (étape 8)
 // GET    /notifications/me               -> NotificationOut[]

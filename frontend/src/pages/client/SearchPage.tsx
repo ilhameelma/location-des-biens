@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Search } from "lucide-react";
 import PropertyCard from "../../components/ui/PropertyCard";
 import { api } from "../../lib/api";
-import type { Bien, TypeBien } from "../../types";
+import type { Bien, Conversation, TypeBien } from "../../types";
 
 const TYPES: { value: TypeBien | "tous"; label: string }[] = [
   { value: "tous", label: "Tous types" },
@@ -15,6 +16,7 @@ const TYPES: { value: TypeBien | "tous"; label: string }[] = [
 ];
 
 export default function SearchPage() {
+  const navigate = useNavigate();
   const [ville, setVille] = useState("");
   const [type, setType] = useState<TypeBien | "tous">("tous");
   const [biens, setBiens] = useState<Bien[]>([]);
@@ -51,6 +53,18 @@ export default function SearchPage() {
       setTimeout(() => setMessage(null), 4000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Impossible de réserver ce bien");
+    }
+  };
+
+  const handleContact = async (bien: Bien) => {
+    try {
+      const conv = await api.post<Conversation>("/conversations", {
+        proprietaire_id: bien.proprietaire_id,
+        bien_id: bien.id,
+      });
+      navigate(`/client/messages?conv=${conv.id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de démarrer la conversation");
     }
   };
 
@@ -99,7 +113,7 @@ export default function SearchPage() {
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {biens.map((b) => (
-          <PropertyCard key={b.id} bien={b} onReserve={handleReserve} />
+          <PropertyCard key={b.id} bien={b} onReserve={handleReserve} onContact={handleContact} />
         ))}
       </div>
 

@@ -2,10 +2,11 @@ import { type ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Building2, LayoutGrid, Search, FileSignature, Wallet, MessageSquare,
-  Star, ShieldAlert, Users, BarChart3, Bell, LogOut, Home,
+  Star, ShieldAlert, Users, BarChart3, LogOut, Home,
 } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import type { Role } from "../../types";
+import NotificationBell from "./NotificationBell";
 
 interface NavItem {
   to: string;
@@ -96,10 +97,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         <header className="flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-card)] px-8 py-4">
           <div />
           <div className="flex items-center gap-4">
-            <button className="relative text-[var(--color-ink-2)] hover:text-[var(--color-ink)]">
-              <Bell size={19} />
-              <span className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-[var(--color-rust)]" />
-            </button>
+            <NotificationBell />
             <div className="flex items-center gap-2 text-sm">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-paper-2)] font-display text-[var(--color-ink)]">
                 {user.prenom[0]}

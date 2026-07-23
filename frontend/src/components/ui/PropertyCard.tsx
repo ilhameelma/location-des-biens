@@ -1,4 +1,4 @@
-import { MapPin, Ruler, CalendarPlus, ImageIcon } from "lucide-react";
+import { MapPin, Ruler, CalendarPlus, ImageIcon, MessageCircle } from "lucide-react";
 import type { Bien } from "../../types";
 import StatusBadge from "./StatusBadge";
 
@@ -16,15 +16,23 @@ const TYPE_LABELS: Record<string, string> = {
 export default function PropertyCard({
   bien,
   onReserve,
+  onContact,
 }: {
   bien: Bien;
   onReserve?: (bien: Bien) => void;
+  onContact?: (bien: Bien) => void;
 }) {
   // --- AFFICHAGE DES PHOTOS ---
-  // L'URL stockée est relative (/uploads/photos/...)
-  // Il faut la préfixer avec l'URL du back-end
-  const firstPhotoUrl = bien.photos && bien.photos.length > 0
-    ? `${API_BASE_URL}${bien.photos[0].url}`
+  // Étape 7 : les photos sont désormais stockées sur MinIO et l'URL
+  // enregistrée en base est déjà une URL absolue
+  // (ex: http://localhost:9000/smartrent-photos/biens/...).
+  // On garde la compatibilité avec d'anciennes URLs relatives
+  // (/uploads/photos/...) au cas où il en resterait en base.
+  const rawUrl = bien.photos && bien.photos.length > 0 ? bien.photos[0].url : null;
+  const firstPhotoUrl = rawUrl
+    ? rawUrl.startsWith("http://") || rawUrl.startsWith("https://")
+      ? rawUrl
+      : `${API_BASE_URL}${rawUrl}`
     : null;
   const photoCount = bien.photos?.length ?? 0;
 
@@ -96,15 +104,26 @@ export default function PropertyCard({
           <span className="text-xs text-[var(--color-ink-3)]">/ mois</span>
         </div>
 
-        {onReserve && bien.statut === "disponible" && (
-          <button
-            onClick={() => onReserve(bien)}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-md bg-[var(--color-brass)] py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-deep)]"
-          >
-            <CalendarPlus size={15} />
-            Réserver
-          </button>
-        )}
+        <div className="mt-2 flex gap-2">
+          {onContact && (
+            <button
+              onClick={() => onContact(bien)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-md border border-[var(--color-line)] py-2 text-sm font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-paper-2)]"
+            >
+              <MessageCircle size={15} />
+              Contacter
+            </button>
+          )}
+          {onReserve && bien.statut === "disponible" && (
+            <button
+              onClick={() => onReserve(bien)}
+              className="flex flex-1 items-center justify-center gap-2 rounded-md bg-[var(--color-brass)] py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-deep)]"
+            >
+              <CalendarPlus size={15} />
+              Réserver
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

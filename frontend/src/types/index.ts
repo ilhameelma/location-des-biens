@@ -113,8 +113,14 @@ export interface Reclamation {
 export interface Conversation {
   id: string;
   bien_id?: string | null;
+  bien_titre?: string | null;
   client_id: string;
   proprietaire_id: string;
+  autre_nom: string;
+  autre_prenom: string;
+  dernier_message?: string | null;
+  date_dernier_message?: string | null;
+  non_lus: number;
 }
 
 export interface Message {
