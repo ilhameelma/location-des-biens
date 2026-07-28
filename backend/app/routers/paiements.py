@@ -6,6 +6,9 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
 from ..deps import get_current_user, require_role
+from ..kafka_producer import publish_event
+from ..kafka_topics import PAIEMENT_EFFECTUE
+from ..notifications_service import notify
 
 router = APIRouter(prefix="/paiements", tags=["paiements"])
 
@@ -37,4 +40,41 @@ def create_paiement(
     db.add(paiement)
     db.commit()
     db.refresh(paiement)
+
+    bien = db.get(models.Bien, contrat.bien_id)
+    bien_titre = bien.titre if bien else "votre bien"
+
+    # Étape 10 — Collecte des données : publie l'événement métier vers Kafka
+    publish_event(
+        PAIEMENT_EFFECTUE,
+        key=str(paiement.id),
+        payload={
+            "id": paiement.id,
+            "contrat_id": paiement.contrat_id,
+            "bien_id": contrat.bien_id,
+            "ville": bien.ville if bien else None,
+            "proprietaire_id": contrat.proprietaire_id,
+            "client_id": current_user.id,
+            "montant": float(paiement.montant),
+            "methode": paiement.methode,
+            "statut": paiement.statut,
+            "date_paiement": paiement.date_paiement,
+        },
+    )
+
+    notify(
+        db,
+        contrat.proprietaire_id,
+        "paiement",
+        f"Paiement de {paiement.montant} MAD reçu pour « {bien_titre} ».",
+        email_subject="SmartRent — Paiement reçu",
+    )
+    notify(
+        db,
+        current_user.id,
+        "paiement",
+        f"Votre paiement de {paiement.montant} MAD pour « {bien_titre} » a bien été enregistré.",
+        email_subject="SmartRent — Confirmation de paiement",
+    )
+
     return paiement

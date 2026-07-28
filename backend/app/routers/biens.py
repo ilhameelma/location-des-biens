@@ -1,38 +1,50 @@
 """Router FastAPI pour la gestion des biens immobiliers (propriétaire)."""
-import uuid
 import os
+import uuid
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
-from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session, joinedload
 
-from .. import models, schemas
+from .. import models, schemas, storage
 from ..database import get_db
 from ..deps import get_current_user, require_role
+from ..kafka_producer import publish_event
+from ..kafka_topics import BIEN_CREE
 
 router = APIRouter(prefix="/biens", tags=["biens"])
-
-# ============================================================
-# Upload de photos — dossier de stockage local
-# ============================================================
-UPLOAD_DIR = "uploads/photos"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
-
-
-def serve_uploads(app):
-    """
-    À appeler dans main.py pour servir les fichiers uploadés.
-    Exemple dans main.py :
-        from app.routers.biens import serve_uploads
-        serve_uploads(app)
-    """
-    app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 
 # ============================================================
 # Endpoints
 # ============================================================
+
+@router.get("", response_model=List[schemas.BienOut])
+def search_biens(
+    ville: str | None = None,
+    type_bien: str | None = None,
+    prix_max: float | None = None,
+    db: Session = Depends(get_db),
+    user: models.Utilisateur = Depends(get_current_user),
+):
+    """
+    Recherche publique des biens (espace client) : ne renvoie que les biens
+    au statut "disponible", avec filtres optionnels ville / type / prix max.
+    """
+    query = (
+        db.query(models.Bien)
+        .options(joinedload(models.Bien.photos))
+        .filter(models.Bien.statut == "disponible")
+    )
+    if ville:
+        query = query.filter(models.Bien.ville.ilike(f"%{ville}%"))
+    if type_bien:
+        query = query.filter(models.Bien.type_bien == type_bien)
+    if prix_max is not None:
+        query = query.filter(models.Bien.prix <= prix_max)
+
+    return query.order_by(models.Bien.date_publication.desc()).all()
+
 
 @router.get("/me/annonces", response_model=List[schemas.BienOut])
 def list_my_biens(
@@ -78,6 +90,23 @@ def create_bien(
     db.add(bien)
     db.commit()
     db.refresh(bien)
+
+    # Étape 10 — Collecte des données : publie l'événement métier vers Kafka
+    publish_event(
+        BIEN_CREE,
+        key=str(bien.id),
+        payload={
+            "id": bien.id,
+            "proprietaire_id": bien.proprietaire_id,
+            "titre": bien.titre,
+            "type_bien": bien.type_bien,
+            "ville": bien.ville,
+            "prix": float(bien.prix),
+            "statut": bien.statut,
+            "date_publication": bien.date_publication,
+        },
+    )
+
     return bien
 
 
@@ -112,11 +141,11 @@ def delete_bien(
     if not bien or bien.proprietaire_id != user.id:
         raise HTTPException(status_code=404, detail="Bien non trouvé")
 
-    # Supprimer les fichiers physiques
+    # Supprimer les fichiers physiques dans MinIO
     for photo in bien.photos:
-        filepath = os.path.join(UPLOAD_DIR, os.path.basename(photo.url))
-        if os.path.exists(filepath):
-            os.remove(filepath)
+        object_name = storage.object_name_from_url(photo.url)
+        if object_name:
+            storage.delete_photo(object_name)
 
     db.delete(bien)
     db.commit()
@@ -137,7 +166,9 @@ async def upload_photos(
 ):
     """
     Upload des photos pour un bien.
-    Les fichiers sont stockés localement dans 'uploads/photos/'.
+    Les fichiers sont envoyés vers le bucket MinIO ("smartrent-photos"),
+    sous la clé "biens/<bien_id>/<uuid>.<ext>" ; l'URL publique MinIO
+    résultante est enregistrée dans `photo_bien.url`.
     """
     bien = db.get(models.Bien, bien_id)
     if not bien or bien.proprietaire_id != user.id:
@@ -147,17 +178,15 @@ async def upload_photos(
 
     for idx, photo in enumerate(photos):
         ext = os.path.splitext(photo.filename or "")[1] or ".jpg"
-        filename = f"{bien_id}_{idx}_{uuid.uuid4().hex}{ext}"
-        filepath = os.path.join(UPLOAD_DIR, filename)
+        object_name = f"biens/{bien_id}/{uuid.uuid4().hex}{ext}"
 
         content = await photo.read()
-        with open(filepath, "wb") as f:
-            f.write(content)
+        photo_url = storage.upload_photo(object_name, content, photo.content_type)
 
         ordre = int(ordres[idx]) if idx < len(ordres) else idx
         db_photo = models.PhotoBien(
             bien_id=bien_id,
-            url=f"/uploads/photos/{filename}",
+            url=photo_url,
             ordre=ordre,
         )
         db.add(db_photo)

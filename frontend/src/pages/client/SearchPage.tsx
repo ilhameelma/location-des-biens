@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search, Sparkles } from "lucide-react";
 import PropertyCard from "../../components/ui/PropertyCard";
+import SimilarPropertiesPanel from "../../components/ia/SimilarPropertiesPanel";
 import { api } from "../../lib/api";
-import type { Bien, Conversation, TypeBien } from "../../types";
+import type { Bien, Conversation, RecommandationResponse, TypeBien } from "../../types";
 
 const TYPES: { value: TypeBien | "tous"; label: string }[] = [
   { value: "tous", label: "Tous types" },
@@ -23,6 +24,10 @@ export default function SearchPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const [similarFor, setSimilarFor] = useState<string | null>(null);
+  const [similarResults, setSimilarResults] = useState<RecommandationResponse | null>(null);
+  const [similarLoading, setSimilarLoading] = useState(false);
 
   const fetchBiens = () => {
     setLoading(true);
@@ -65,6 +70,26 @@ export default function SearchPage() {
       navigate(`/client/messages?conv=${conv.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Impossible de démarrer la conversation");
+    }
+  };
+
+  const handleToggleSimilar = async (bien: Bien) => {
+    if (similarFor === bien.id) {
+      setSimilarFor(null);
+      setSimilarResults(null);
+      return;
+    }
+    setSimilarFor(bien.id);
+    setSimilarResults(null);
+    setSimilarLoading(true);
+    try {
+      const res = await api.get<RecommandationResponse>(`/ia/recommandation/${bien.id}?top_n=4`);
+      setSimilarResults(res);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Recommandation temporairement indisponible");
+      setSimilarFor(null);
+    } finally {
+      setSimilarLoading(false);
     }
   };
 
@@ -113,7 +138,26 @@ export default function SearchPage() {
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {biens.map((b) => (
-          <PropertyCard key={b.id} bien={b} onReserve={handleReserve} onContact={handleContact} />
+          <div key={b.id}>
+            <PropertyCard bien={b} onReserve={handleReserve} onContact={handleContact} />
+            <button
+              type="button"
+              onClick={() => handleToggleSimilar(b)}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-[var(--color-brass)] py-1.5 text-xs font-medium text-[var(--color-brass-deep)] hover:bg-[#f4e9df]/40"
+            >
+              <Sparkles size={12} />
+              {similarFor === b.id ? "Masquer les biens similaires" : "Voir des biens similaires"}
+            </button>
+            {similarFor === b.id && similarLoading && (
+              <p className="mt-2 text-xs text-[var(--color-ink-3)]">Recherche en cours…</p>
+            )}
+            {similarFor === b.id && similarResults && (
+              <SimilarPropertiesPanel
+                items={similarResults.resultats}
+                sourceCatalogue={similarResults.source_catalogue}
+              />
+            )}
+          </div>
         ))}
       </div>
 

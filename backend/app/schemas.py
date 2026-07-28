@@ -209,12 +209,26 @@ class MessageOut(BaseModel):
     lu: bool
 
 
+class ConversationCreate(BaseModel):
+    """Créée par le client pour démarrer (ou récupérer) une conversation avec un propriétaire."""
+    proprietaire_id: uuid.UUID
+    bien_id: Optional[uuid.UUID] = None
+
+
 class ConversationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     bien_id: Optional[uuid.UUID] = None
+    bien_titre: Optional[str] = None
     client_id: uuid.UUID
     proprietaire_id: uuid.UUID
+    # Nom/prénom de l'AUTRE interlocuteur, du point de vue de l'utilisateur connecté
+    # (calculés côté back-end pour éviter à chaque écran client de refaire cette logique).
+    autre_nom: str
+    autre_prenom: str
+    dernier_message: Optional[str] = None
+    date_dernier_message: Optional[datetime] = None
+    non_lus: int = 0
 
 
 # ---------- Notification ----------

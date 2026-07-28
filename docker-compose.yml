@@ -1,9 +1,7 @@
-version: "3.9"
-
 # ============================================================
 # SmartRent Platform — docker-compose.yml
 # Couvre : PostgreSQL (app + Airflow), MinIO, Kafka/Zookeeper,
-# Airflow, et une interface web pour Kafka.
+# Spark, Airflow, et une interface web pour Kafka.
 #
 # Ce fichier ne contient PAS encore le back-end / front-end :
 # ils restent en développement local (Phase 2) et seront ajoutés
@@ -41,7 +39,8 @@ services:
       - smartrent_net
 
   # ------------------------------------------------------------
-  # Stockage objet (photos de biens, documents contractuels)
+  # Stockage objet (photos de biens, documents contractuels,
+  # et maintenant le data lake — étape 12)
   # ------------------------------------------------------------
   minio:
     image: minio/minio:latest
@@ -61,6 +60,29 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Crée automatiquement le bucket du data lake au démarrage
+  # (étape 12) — même logique que storage.ensure_bucket() côté
+  # back-end pour le bucket "smartrent-photos" (étape 7), mais ici
+  # via le client officiel MinIO (mc), car ce bucket n'est pas géré
+  # par l'application FastAPI.
+  # ------------------------------------------------------------
+  minio-init:
+    image: minio/mc:latest
+    container_name: smartrent_minio_init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        mc alias set local http://minio:9000 smartrent_admin smartrent_minio_pwd &&
+        mc mb --ignore-existing local/smartrent-datalake &&
+        echo "Bucket 'smartrent-datalake' prêt."
     networks:
       - smartrent_net
 
@@ -99,6 +121,12 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    volumes:
+      # Étape 13 : sans ce volume, Kafka perdait tous ses topics/offsets à
+      # chaque `docker-compose down`, alors que le checkpoint Spark (sur
+      # l'hôte, lui) survivait — désynchronisation qui faisait planter le
+      # pipeline avec "Set(...) are gone. Some data may have been missed".
+      - kafka_data:/var/lib/kafka/data
     networks:
       - smartrent_net
 
@@ -118,6 +146,32 @@ services:
       KAFKA_CLUSTERS_0_NAME: smartrent
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Spark — étape 11 (ETL/traitement)
+  # Image officielle Apache Spark. Un seul conteneur "prêt à l'emploi"
+  # (pas de cluster master/worker, inutile pour la volumétrie d'un PFE) :
+  # il reste en veille (tail -f /dev/null) et on y lance les jobs via
+  # `docker exec` + `spark-submit`. Sera piloté par Airflow à l'étape 13.
+  # ------------------------------------------------------------
+  spark:
+    image: apache/spark:3.4.1
+    container_name: smartrent_spark
+    restart: unless-stopped
+    depends_on:
+      - kafka
+      - minio
+    user: root
+    entrypoint: ["tail", "-f", "/dev/null"]
+    environment:
+      PATH: /opt/spark/bin:/opt/spark/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    volumes:
+      - ./data/spark/jobs:/opt/spark-jobs
+      - ./data/spark/checkpoints:/opt/spark-jobs/_checkpoints
+      - ./data/spark/jars:/opt/spark/jars/extras
+      - ./data/spark/conf/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf
     networks:
       - smartrent_net
 
@@ -149,7 +203,7 @@ services:
   # puis s'arrête — ce n'est pas un service qui tourne en continu)
   # ------------------------------------------------------------
   airflow-init:
-    image: apache/airflow:2.9.1
+    build: ./airflow   # étape 13 : image custom (CLI docker installé, voir airflow/Dockerfile)
     container_name: smartrent_airflow_init
     depends_on:
       postgres_airflow:
@@ -157,6 +211,12 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_pwd@postgres_airflow/airflow
+      # Doit être IDENTIQUE sur airflow-init / airflow-webserver / airflow-scheduler :
+      # sert à signer les jetons utilisés par le webserver pour aller lire les
+      # logs des tâches sur le scheduler. Une valeur différente par conteneur
+      # (ce qui arrive si elle n'est pas fixée ici) casse l'affichage des logs
+      # avec une erreur "InvalidSignatureError" / 403.
+      AIRFLOW__WEBSERVER__SECRET_KEY: "smartrent_pfe_secret_key_change_if_needed"
     entrypoint: /bin/bash
     command:
       - -c
@@ -176,7 +236,7 @@ services:
   # Interface web Airflow (http://localhost:8081, admin/admin)
   # ------------------------------------------------------------
   airflow-webserver:
-    image: apache/airflow:2.9.1
+    build: ./airflow
     container_name: smartrent_airflow_webserver
     restart: unless-stopped
     depends_on:
@@ -185,6 +245,7 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_pwd@postgres_airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "smartrent_pfe_secret_key_change_if_needed"
     ports:
       - "8081:8080"
     command: webserver
@@ -198,7 +259,7 @@ services:
   # (nettoyage nocturne, agrégation vers le data warehouse)
   # ------------------------------------------------------------
   airflow-scheduler:
-    image: apache/airflow:2.9.1
+    build: ./airflow
     container_name: smartrent_airflow_scheduler
     restart: unless-stopped
     depends_on:
@@ -207,9 +268,16 @@ services:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_pwd@postgres_airflow/airflow
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__WEBSERVER__SECRET_KEY: "smartrent_pfe_secret_key_change_if_needed"
     command: scheduler
+    # étape 13 : le scheduler exécute les tâches (LocalExecutor) et doit donc
+    # pouvoir lancer `docker exec smartrent_spark ...` depuis le DAG — d'où le
+    # socket Docker de l'hôte monté ci-dessous, et l'exécution en root pour
+    # y avoir accès sans complication de permissions/groupe.
+    user: "0:0"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - smartrent_net
 
@@ -248,3 +316,4 @@ volumes:
   postgres_data:
   postgres_airflow_data:
   minio_data:
+  kafka_data:

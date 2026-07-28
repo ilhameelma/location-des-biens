@@ -1,11 +1,9 @@
-import os
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import Base, engine
+from . import storage, ws_manager
 from .routers import (
     auth,
     biens,
@@ -17,16 +15,33 @@ from .routers import (
     messagerie,
     notifications,
     utilisateurs,
+    ia,
 )
 
 # Crée les tables si elles n'existent pas encore
 Base.metadata.create_all(bind=engine)
+
+# Étape 7 — Stockage des images : crée le bucket MinIO au démarrage
+# (s'il n'existe pas déjà) et lui applique une politique de lecture publique.
+storage.ensure_bucket()
 
 app = FastAPI(
     title="SmartRent Platform API",
     description="API REST du back-end SmartRent",
     version="0.1.0",
 )
+
+
+@app.on_event("startup")
+async def _capture_main_event_loop():
+    """
+    Étape 9 — Notifications : mémorise la boucle asyncio principale pour
+    pouvoir y planifier en toute sécurité la diffusion WebSocket des
+    notifications depuis les endpoints synchrones (voir app/notifications_service.py).
+    """
+    import asyncio
+
+    ws_manager.set_main_loop(asyncio.get_running_loop())
 
 # ============================================================
 # CORS
@@ -40,18 +55,13 @@ app.add_middleware(
 )
 
 # ============================================================
-# SERVIR LES FICHIERS UPLOADÉS (photos, documents)
-# IMPORTANT : doit être AVANT les routers API pour éviter
-# que /api n'intercepte les requêtes /uploads
-# ============================================================
-os.makedirs("uploads/photos", exist_ok=True)
-app.mount("/api/uploads", StaticFiles(directory="uploads"), name="uploads")
-
+# Note : les photos de biens (étape 7) ne sont plus servies par le
+# back-end. Elles sont uploadées vers MinIO (voir app/storage.py et
+# app/routers/biens.py) et servies directement par MinIO via une URL
+# publique (ex: http://localhost:9000/smartrent-photos/biens/...).
 # ============================================================
 # ROUTERS API
 # ============================================================
-app.include_router(auth.router, prefix="/api")
-app.include_router(biens.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
 app.include_router(utilisateurs.router, prefix="/api")
 app.include_router(biens.router, prefix="/api")
@@ -62,6 +72,7 @@ app.include_router(avis.router, prefix="/api")
 app.include_router(reclamations.router, prefix="/api")
 app.include_router(messagerie.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
+app.include_router(ia.router, prefix="/api")
 
 
 @app.get("/api/health")

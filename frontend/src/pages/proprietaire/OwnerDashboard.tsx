@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { Building2, Wallet, FileSignature, Plus, X, Upload } from "lucide-react";
 import StatCard from "../../components/ui/StatCard";
 import PropertyCard from "../../components/ui/PropertyCard";
+import EstimationWidget from "../../components/ia/EstimationWidget";
 import { api } from "../../lib/api";
 import type { Bien, TypeBien } from "../../types";
 
@@ -208,16 +209,6 @@ export default function OwnerDashboard() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Prix (MAD/mois)</label>
-            <input
-              required
-              type="number"
-              value={form.prix}
-              onChange={(e) => setForm({ ...form, prix: e.target.value })}
-              className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
-            />
-          </div>
-          <div>
             <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Superficie (m²)</label>
             <input
               type="number"
@@ -232,6 +223,25 @@ export default function OwnerDashboard() {
               type="number"
               value={form.nb_pieces}
               onChange={(e) => setForm({ ...form, nb_pieces: e.target.value })}
+              className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+            />
+          </div>
+
+          <EstimationWidget
+            ville={form.ville}
+            superficie={form.superficie}
+            nb_pieces={form.nb_pieces}
+            type_bien={form.type_bien}
+            onApply={(prix) => setForm((f) => ({ ...f, prix: String(prix) }))}
+          />
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Prix (MAD/mois)</label>
+            <input
+              required
+              type="number"
+              value={form.prix}
+              onChange={(e) => setForm({ ...form, prix: e.target.value })}
               className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
             />
           </div>

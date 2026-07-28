@@ -140,3 +140,35 @@ export interface Notification {
   date_creation: string;
 }
 
+// ---------- Intelligence artificielle (étape 16) ----------
+
+export interface EstimationResponse {
+  prix_estime_dh: number;
+  fourchette_basse_dh: number;
+  fourchette_haute_dh: number;
+  marge_erreur_dh: number;
+}
+
+export interface FraudeResponse {
+  est_suspect: boolean;
+  prix_attendu_dh: number;
+  ecart_prix_pct: number;
+  raison: string;
+  anomaly_score: number;
+}
+
+export interface RecommandationItem {
+  id?: string | null;
+  titre?: string | null;
+  ville: string;
+  quartier?: string | null;
+  prix_dh: number;
+  superficie_m2?: number | null;
+  score_similarite: number;
+}
+
+export interface RecommandationResponse {
+  source_catalogue: "reel" | "bootstrap_externe";
+  resultats: RecommandationItem[];
+}
+
