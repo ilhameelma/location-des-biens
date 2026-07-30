@@ -21,7 +21,8 @@ export type TypeBien =
   | "magasin"
   | "garage"
   | "bureau"
-  | "terrain";
+  | "terrain"
+  | "villa";
 
 export type StatutBien = "disponible" | "loue" | "en_attente" | "suspendu";
 

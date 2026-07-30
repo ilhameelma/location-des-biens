@@ -11,6 +11,7 @@ const TYPE_LABELS: Record<string, string> = {
   garage: "Garage",
   bureau: "Bureau",
   terrain: "Terrain",
+  villa: "Villa",
 };
 
 export default function PropertyCard({

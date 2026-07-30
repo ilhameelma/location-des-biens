@@ -46,7 +46,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="mb-8 flex items-center justify-center gap-2 text-white">
           <Home size={22} className="text-[var(--color-brass)]" />
-          <span className="font-display text-2xl">SmartRent</span>
+          <span className="font-display text-2xl">ImmoVision</span>
         </div>
 
         <form onSubmit={handleSubmit} className="rounded-lg bg-[var(--color-card)] p-8 shadow-xl">

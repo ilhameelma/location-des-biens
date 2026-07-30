@@ -3,10 +3,11 @@ import { Building2, Wallet, FileSignature, Plus, X, Upload } from "lucide-react"
 import StatCard from "../../components/ui/StatCard";
 import PropertyCard from "../../components/ui/PropertyCard";
 import EstimationWidget from "../../components/ia/EstimationWidget";
-import { api } from "../../lib/api";
+import LocationPicker from "../../components/map/LocationPicker";
+import { api, formatErrorDetail } from "../../lib/api";
 import type { Bien, TypeBien } from "../../types";
 
-const TYPES: TypeBien[] = ["appartement", "maison", "bureau", "magasin", "garage", "terrain"];
+const TYPES: TypeBien[] = ["appartement", "maison", "villa", "bureau", "magasin", "garage", "terrain"];
 
 export default function OwnerDashboard() {
   const [biens, setBiens] = useState<Bien[]>([]);
@@ -24,12 +25,20 @@ export default function OwnerDashboard() {
     prix: "",
     superficie: "",
     nb_pieces: "",
+    latitude: null as number | null,
+    longitude: null as number | null,
   });
 
   // --- Gestion des images ---
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Édition de la position d'un bien déjà publié (rattrapage géolocalisation) ---
+  const [editingLocationFor, setEditingLocationFor] = useState<string | null>(null);
+  const [editLat, setEditLat] = useState<number | null>(null);
+  const [editLng, setEditLng] = useState<number | null>(null);
+  const [savingLocation, setSavingLocation] = useState(false);
 
   const fetchBiens = () => {
     setLoading(true);
@@ -74,6 +83,8 @@ export default function OwnerDashboard() {
       prix: "",
       superficie: "",
       nb_pieces: "",
+      latitude: null,
+      longitude: null,
     });
     previewUrls.forEach((url) => URL.revokeObjectURL(url));
     setSelectedImages([]);
@@ -96,6 +107,8 @@ export default function OwnerDashboard() {
         prix: Number(form.prix),
         superficie: form.superficie ? Number(form.superficie) : null,
         nb_pieces: form.nb_pieces ? Number(form.nb_pieces) : null,
+        latitude: form.latitude,
+        longitude: form.longitude,
       });
 
       const bienId = bienRes.id;
@@ -126,7 +139,7 @@ export default function OwnerDashboard() {
 
         if (!res.ok) {
           const body = await res.json().catch(() => ({}));
-          throw new Error(body.detail ?? `Erreur upload photos (${res.status})`);
+          throw new Error(formatErrorDetail(body.detail, res.status) || `Erreur upload photos (${res.status})`);
         }
       }
 
@@ -141,6 +154,33 @@ export default function OwnerDashboard() {
   };
 
   const loues = biens.filter((b) => b.statut === "loue").length;
+
+  const openLocationEditor = (bien: Bien) => {
+    setEditingLocationFor(bien.id);
+    setEditLat(bien.latitude ?? null);
+    setEditLng(bien.longitude ?? null);
+  };
+
+  const cancelLocationEditor = () => {
+    setEditingLocationFor(null);
+    setEditLat(null);
+    setEditLng(null);
+  };
+
+  const saveLocation = async (bienId: string) => {
+    if (editLat == null || editLng == null) return;
+    setSavingLocation(true);
+    setError(null);
+    try {
+      await api.patch<Bien>(`/biens/${bienId}`, { latitude: editLat, longitude: editLng });
+      cancelLocationEditor();
+      fetchBiens();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible d'enregistrer la position");
+    } finally {
+      setSavingLocation(false);
+    }
+  };
 
   return (
     <div>
@@ -208,6 +248,14 @@ export default function OwnerDashboard() {
               className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
             />
           </div>
+          <LocationPicker
+            latitude={form.latitude}
+            longitude={form.longitude}
+            ville={form.ville}
+            adresse={form.adresse}
+            onChange={(lat, lng) => setForm((f) => ({ ...f, latitude: lat, longitude: lng }))}
+          />
+
           <div>
             <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Superficie (m²)</label>
             <input
@@ -315,8 +363,8 @@ export default function OwnerDashboard() {
               {submitting ? "Publication…" : "Publier l'annonce"}
             </button>
             <p className="mt-2 text-xs text-[var(--color-ink-3)]">
-              L'annonce sera créée avec le statut « disponible ». Les images seront stockées
-              sur MinIO une fois l'intégration terminée (étape 7).
+              L'annonce sera créée avec le statut « disponible ». Pensez à indiquer la
+              position sur la carte ci-dessus pour qu'elle apparaisse en vue Carte côté client.
             </p>
           </div>
         </form>
@@ -337,7 +385,50 @@ export default function OwnerDashboard() {
       )}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
         {biens.map((b) => (
-          <PropertyCard key={b.id} bien={b} />
+          <div key={b.id}>
+            <PropertyCard bien={b} />
+            {editingLocationFor === b.id ? (
+              <div className="mt-2 rounded-md border border-[var(--color-line)] bg-[var(--color-card)] p-3">
+                <LocationPicker
+                  latitude={editLat}
+                  longitude={editLng}
+                  ville={b.ville}
+                  adresse={b.adresse}
+                  onChange={(lat, lng) => {
+                    setEditLat(lat);
+                    setEditLng(lng);
+                  }}
+                />
+                <div className="mt-2 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => saveLocation(b.id)}
+                    disabled={savingLocation || editLat == null || editLng == null}
+                    className="flex-1 rounded-md bg-[var(--color-brass)] py-1.5 text-xs font-medium text-white hover:bg-[var(--color-brass-deep)] disabled:opacity-50"
+                  >
+                    {savingLocation ? "Enregistrement…" : "Enregistrer la position"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelLocationEditor}
+                    className="rounded-md border border-[var(--color-line)] px-3 py-1.5 text-xs font-medium text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)]"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => openLocationEditor(b)}
+                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-[var(--color-line)] py-1.5 text-xs font-medium text-[var(--color-ink-2)] hover:border-[var(--color-brass)] hover:text-[var(--color-brass-deep)]"
+              >
+                {b.latitude != null && b.longitude != null
+                  ? "Modifier la position sur la carte"
+                  : "⚠ Non géolocalisé — cliquez pour localiser"}
+              </button>
+            )}
+          </div>
         ))}
       </div>
     </div>

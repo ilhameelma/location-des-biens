@@ -27,6 +27,32 @@ interface RequestOptions extends RequestInit {
   auth?: boolean; // ajoute le header Authorization si true (défaut: true)
 }
 
+// Met en forme le champ `detail` renvoyé par FastAPI, qui peut être :
+// - une chaîne simple (HTTPException classique) → utilisée telle quelle
+// - un tableau d'erreurs de validation Pydantic (422) → chaque élément a la
+//   forme { loc: [...], msg: "...", type: "..." } → on les joint en texte lisible
+// - autre chose d'inattendu → repli sur un message générique plutôt que
+//   d'afficher "[object Object]" côté UI
+export function formatErrorDetail(detail: unknown, status: number): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (item && typeof item === "object" && "msg" in item) {
+          const loc = Array.isArray((item as { loc?: unknown[] }).loc)
+            ? (item as { loc: unknown[] }).loc.filter((l) => l !== "body").join(".")
+            : null;
+          const msg = String((item as { msg: unknown }).msg);
+          return loc ? `${loc} : ${msg}` : msg;
+        }
+        return null;
+      })
+      .filter((m): m is string => Boolean(m));
+    if (messages.length > 0) return messages.join(" — ");
+  }
+  return `Erreur API (${status})`;
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { auth = true, headers, ...rest } = options;
   const token = auth ? tokenStore.get() : null;
@@ -42,7 +68,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail ?? `Erreur API (${res.status})`);
+    throw new Error(formatErrorDetail(body.detail, res.status));
   }
 
   if (res.status === 204) return undefined as T;
