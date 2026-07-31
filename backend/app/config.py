@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     ml_service_url: str = "http://localhost:8001"
     ml_service_timeout_seconds: float = 5.0
 
+    # ============================================================
+    # Étape 18 — Recherche avancée (Elasticsearch)
+    # ============================================================
+    # elasticsearch_url : utilisé par le back-end (hors Docker en local)
+    # pour PARLER au service Elasticsearch du docker-compose.yml.
+    #   - en local (back-end hors Docker) : "http://localhost:9200"
+    #   - une fois le back-end conteneurisé (Phase 5) : "http://elasticsearch:9200"
+    elasticsearch_url: str = "http://localhost:9200"
+    elasticsearch_index: str = "smartrent_biens"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

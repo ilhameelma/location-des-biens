@@ -32,7 +32,10 @@ CREATE TABLE bien (
     titre               VARCHAR(200) NOT NULL,
     description         TEXT,
     type_bien           VARCHAR(30) NOT NULL
-                        CHECK (type_bien IN ('maison', 'appartement', 'magasin', 'garage', 'bureau', 'terrain')),
+                        CHECK (type_bien IN ('maison', 'appartement', 'magasin', 'garage', 'bureau', 'terrain', 'villa')),
+    -- Sépare les annonces à louer des annonces à vendre.
+    type_transaction    VARCHAR(10) NOT NULL DEFAULT 'location'
+                        CHECK (type_transaction IN ('location', 'vente')),
     adresse             VARCHAR(255) NOT NULL,
     ville               VARCHAR(100) NOT NULL,
     latitude            DOUBLE PRECISION,
@@ -41,7 +44,7 @@ CREATE TABLE bien (
     prix                NUMERIC(12,2) NOT NULL,
     nb_pieces           INTEGER,
     statut              VARCHAR(20) NOT NULL DEFAULT 'disponible'
-                        CHECK (statut IN ('disponible', 'loue', 'en_attente', 'suspendu')),
+                        CHECK (statut IN ('disponible', 'loue', 'vendu', 'en_attente', 'suspendu')),
     date_publication    TIMESTAMP NOT NULL DEFAULT now(),
     date_maj            TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -49,6 +52,7 @@ CREATE TABLE bien (
 CREATE INDEX idx_bien_proprietaire ON bien(proprietaire_id);
 CREATE INDEX idx_bien_ville ON bien(ville);
 CREATE INDEX idx_bien_type ON bien(type_bien);
+CREATE INDEX idx_bien_type_transaction ON bien(type_transaction);
 
 -- ============================================================
 -- Table : photo_bien

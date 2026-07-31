@@ -96,6 +96,9 @@ export interface Avis {
   note: number;
   commentaire?: string | null;
   date_creation: string;
+  client_nom?: string | null;
+  client_prenom?: string | null;
+  bien_titre?: string | null;
 }
 
 export type StatutReclamation = "ouverte" | "en_cours" | "resolue" | "rejetee";

@@ -18,12 +18,21 @@ interface RegisterPayload {
   role: Role;
 }
 
+interface ProfileUpdatePayload {
+  nom?: string;
+  prenom?: string;
+  email?: string;
+  telephone?: string;
+}
+
 interface AuthContextValue {
   user: Utilisateur | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<Utilisateur>;
   register: (payload: RegisterPayload) => Promise<Utilisateur>;
   logout: () => void;
+  updateProfile: (payload: ProfileUpdatePayload) => Promise<Utilisateur>;
+  changePassword: (motDePasseActuel: string, nouveauMotDePasse: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -69,8 +78,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  // Page « Mon compte » : met à jour nom/prénom/email/téléphone côté back-end
+  // (PATCH /auth/me) puis synchronise l'utilisateur en mémoire/contexte.
+  const updateProfile = async (payload: ProfileUpdatePayload) => {
+    const updated = await api.patch<Utilisateur>("/auth/me", payload);
+    setUser(updated);
+    return updated;
+  };
+
+  // Page « Mon compte » : changement de mot de passe (exige l'ancien).
+  const changePassword = async (motDePasseActuel: string, nouveauMotDePasse: string) => {
+    await api.patch<void>("/auth/me/mot-de-passe", {
+      mot_de_passe_actuel: motDePasseActuel,
+      nouveau_mot_de_passe: nouveauMotDePasse,
+    });
+  };
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout }}>
+    <AuthContext.Provider
+      value={{ user, loading, login, register, logout, updateProfile, changePassword }}
+    >
       {children}
     </AuthContext.Provider>
   );

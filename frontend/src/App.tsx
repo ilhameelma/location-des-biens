@@ -13,11 +13,15 @@ import OwnerDashboard from "./pages/proprietaire/OwnerDashboard";
 import DemandesPage from "./pages/proprietaire/DemandesPage";
 import OwnerPaiementsPage from "./pages/proprietaire/OwnerPaiementsPage";
 import OwnerMessagesPage from "./pages/proprietaire/OwnerMessagesPage";
+import OwnerAvisPage from "./pages/proprietaire/AvisPage";
 
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UtilisateursPage from "./pages/admin/UtilisateursPage";
 import AnnoncesPage from "./pages/admin/AnnoncesPage";
 import ReclamationsPage from "./pages/admin/ReclamationsPage";
+
+import BienDetailPage from "./pages/BienDetailPage";
+import ComptePage from "./pages/ComptePage";
 
 export default function App() {
   return (
@@ -39,6 +43,13 @@ export default function App() {
           <Route path="/proprietaire/demandes" element={<ProtectedRoute role="proprietaire"><DemandesPage /></ProtectedRoute>} />
           <Route path="/proprietaire/paiements" element={<ProtectedRoute role="proprietaire"><OwnerPaiementsPage /></ProtectedRoute>} />
           <Route path="/proprietaire/messages" element={<ProtectedRoute role="proprietaire"><OwnerMessagesPage /></ProtectedRoute>} />
+          <Route path="/proprietaire/avis" element={<ProtectedRoute role="proprietaire"><OwnerAvisPage /></ProtectedRoute>} />
+
+          {/* Fiche détaillée d'une annonce — accessible aux 3 rôles (client, propriétaire, admin) */}
+          <Route path="/biens/:id" element={<ProtectedRoute><BienDetailPage /></ProtectedRoute>} />
+
+          {/* Mon compte — accessible aux 3 rôles (client, propriétaire, admin) */}
+          <Route path="/compte" element={<ProtectedRoute><ComptePage /></ProtectedRoute>} />
 
           {/* Espace Admin */}
           <Route path="/admin" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />

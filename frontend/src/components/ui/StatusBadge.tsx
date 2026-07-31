@@ -17,6 +17,7 @@ const STATUS_TONE: Record<string, Tone> = {
   en_cours: "brass",
   brouillon: "brass",
   loue: "neutral",
+  vendu: "neutral",
   suspendu: "rust",
   refusee: "rust",
   annulee: "rust",
@@ -29,6 +30,7 @@ const STATUS_TONE: Record<string, Tone> = {
 const LABELS: Record<string, string> = {
   disponible: "Disponible",
   loue: "Loué",
+  vendu: "Vendu",
   en_attente: "En attente",
   suspendu: "Suspendu",
   acceptee: "Acceptée",

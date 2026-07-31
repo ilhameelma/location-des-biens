@@ -45,3 +45,45 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
 @router.get("/me", response_model=schemas.UtilisateurOut)
 def me(current_user: models.Utilisateur = Depends(get_current_user)):
     return current_user
+
+
+@router.patch("/me", response_model=schemas.UtilisateurOut)
+def update_me(
+    payload: schemas.UtilisateurUpdate,
+    db: Session = Depends(get_db),
+    current_user: models.Utilisateur = Depends(get_current_user),
+):
+    """Page « Mon compte » : le membre connecté modifie ses propres informations
+    (nom, prénom, téléphone, email). Seuls les champs envoyés sont mis à jour."""
+    data = payload.model_dump(exclude_unset=True)
+
+    if "email" in data and data["email"] != current_user.email:
+        existing = (
+            db.query(models.Utilisateur)
+            .filter(models.Utilisateur.email == data["email"])
+            .first()
+        )
+        if existing:
+            raise HTTPException(status_code=400, detail="Cet email est déjà utilisé par un autre compte")
+
+    for field, value in data.items():
+        setattr(current_user, field, value)
+
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.patch("/me/mot-de-passe", status_code=status.HTTP_204_NO_CONTENT)
+def change_password(
+    payload: schemas.ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: models.Utilisateur = Depends(get_current_user),
+):
+    """Page « Mon compte » : changement de mot de passe, exige l'ancien mot de passe."""
+    if not verify_password(payload.mot_de_passe_actuel, current_user.mot_de_passe_hash):
+        raise HTTPException(status_code=400, detail="Mot de passe actuel incorrect")
+
+    current_user.mot_de_passe_hash = hash_password(payload.nouveau_mot_de_passe)
+    db.commit()
+    return None

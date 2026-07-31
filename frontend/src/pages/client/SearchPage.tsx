@@ -5,7 +5,7 @@ import PropertyCard from "../../components/ui/PropertyCard";
 import SimilarPropertiesPanel from "../../components/ia/SimilarPropertiesPanel";
 import PropertiesMap from "../../components/map/PropertiesMap";
 import { api } from "../../lib/api";
-import type { Bien, Conversation, RecommandationResponse, TypeBien } from "../../types";
+import type { Bien, Conversation, RecommandationResponse, TypeBien, TypeTransaction } from "../../types";
 
 const TYPES: { value: TypeBien | "tous"; label: string }[] = [
   { value: "tous", label: "Tous types" },
@@ -20,6 +20,7 @@ const TYPES: { value: TypeBien | "tous"; label: string }[] = [
 
 export default function SearchPage() {
   const navigate = useNavigate();
+  const [transactionType, setTransactionType] = useState<TypeTransaction>("location");
   const [ville, setVille] = useState("");
   const [type, setType] = useState<TypeBien | "tous">("tous");
   const [q, setQ] = useState("");
@@ -54,6 +55,7 @@ export default function SearchPage() {
     setLoading(true);
     setError(null);
     const params = new URLSearchParams();
+    params.set("type_transaction", transactionType);
     if (ville) params.set("ville", ville);
     if (type !== "tous") params.set("type_bien", type);
     if (debouncedQ) params.set("q", debouncedQ);
@@ -69,21 +71,27 @@ export default function SearchPage() {
   };
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(fetchBiens, [ville, type, debouncedQ, prixMin, prixMax, superficieMin, tri]);
+  useEffect(fetchBiens, [transactionType, ville, type, debouncedQ, prixMin, prixMax, superficieMin, tri]);
 
   const handleReserve = async (bien: Bien) => {
     const dateDebut = window.prompt(
-      `Date de début de la réservation pour "${bien.titre}" (format AAAA-MM-JJ) :`,
+      bien.type_transaction === "vente"
+        ? `Date souhaitée pour votre offre sur "${bien.titre}" (format AAAA-MM-JJ) :`
+        : `Date de début de la réservation pour "${bien.titre}" (format AAAA-MM-JJ) :`,
       new Date().toISOString().slice(0, 10)
     );
     if (!dateDebut) return;
 
     try {
       await api.post("/reservations", { bien_id: bien.id, date_debut: dateDebut });
-      setMessage("Demande de réservation envoyée au propriétaire !");
+      setMessage(
+        bien.type_transaction === "vente"
+          ? "Votre offre a été envoyée au propriétaire !"
+          : "Demande de réservation envoyée au propriétaire !"
+      );
       setTimeout(() => setMessage(null), 4000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible de réserver ce bien");
+      setError(err instanceof Error ? err.message : "Impossible d'envoyer la demande");
     }
   };
 
@@ -124,6 +132,32 @@ export default function SearchPage() {
       <h1 className="tick-rule font-display text-2xl text-[var(--color-ink)]">
         Rechercher un bien
       </h1>
+
+      {/* Nav séparant les annonces à louer des annonces à vendre */}
+      <div className="mt-4 flex w-fit overflow-hidden rounded-md border border-[var(--color-line)]">
+        <button
+          type="button"
+          onClick={() => setTransactionType("location")}
+          className={`px-5 py-2 text-sm font-medium transition-colors ${
+            transactionType === "location"
+              ? "bg-[var(--color-brass)] text-white"
+              : "bg-[var(--color-card)] text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)]"
+          }`}
+        >
+          Louer
+        </button>
+        <button
+          type="button"
+          onClick={() => setTransactionType("vente")}
+          className={`border-l border-[var(--color-line)] px-5 py-2 text-sm font-medium transition-colors ${
+            transactionType === "vente"
+              ? "bg-[var(--color-brass)] text-white"
+              : "bg-[var(--color-card)] text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)]"
+          }`}
+        >
+          Acheter
+        </button>
+      </div>
 
       {message && (
         <div className="mt-4 rounded-md bg-[var(--color-sage-bg)] px-4 py-2 text-sm text-[var(--color-sage)]">

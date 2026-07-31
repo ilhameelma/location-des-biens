@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import settings
 from .database import Base, engine
-from . import storage, ws_manager
+from . import storage, ws_manager, es_client
 from .routers import (
     auth,
     biens,
@@ -24,6 +24,12 @@ Base.metadata.create_all(bind=engine)
 # Étape 7 — Stockage des images : crée le bucket MinIO au démarrage
 # (s'il n'existe pas déjà) et lui applique une politique de lecture publique.
 storage.ensure_bucket()
+
+# Étape 18 — Recherche avancée : crée l'index Elasticsearch au démarrage
+# (s'il n'existe pas déjà). Best-effort : si Elasticsearch n'est pas encore
+# lancé, l'application démarre quand même (repli SQL automatique, voir
+# app/routers/biens.py et app/es_client.py).
+es_client.ensure_index()
 
 app = FastAPI(
     title="SmartRent Platform API",

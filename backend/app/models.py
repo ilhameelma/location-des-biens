@@ -37,6 +37,8 @@ class Bien(Base):
     titre: Mapped[str] = mapped_column(String(200))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     type_bien: Mapped[str] = mapped_column(String(30))  # maison|appartement|magasin|garage|bureau|terrain
+    # Sépare les annonces à louer des annonces à vendre.
+    type_transaction: Mapped[str] = mapped_column(String(10), default="location", index=True)  # location|vente
     adresse: Mapped[str] = mapped_column(String(255))
     ville: Mapped[str] = mapped_column(String(100), index=True)
     latitude: Mapped[float | None] = mapped_column(Double, nullable=True)

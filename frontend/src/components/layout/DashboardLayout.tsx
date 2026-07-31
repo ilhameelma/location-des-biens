@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   Building2, LayoutGrid, Search, FileSignature, Wallet, MessageSquare,
-  Star, ShieldAlert, Users, BarChart3, LogOut, Home,
+  Star, ShieldAlert, Users, BarChart3, LogOut, Home, UserCircle,
 } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import type { Role } from "../../types";
@@ -27,6 +27,7 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: "/proprietaire/demandes", label: "Demandes", icon: FileSignature },
     { to: "/proprietaire/paiements", label: "Paiements", icon: Wallet },
     { to: "/proprietaire/messages", label: "Messagerie", icon: MessageSquare },
+    { to: "/proprietaire/avis", label: "Avis clients", icon: Star },
   ],
   admin: [
     { to: "/admin", label: "Vue d'ensemble", icon: BarChart3 },
@@ -81,16 +82,31 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </nav>
         </div>
 
-        <button
-          onClick={() => {
-            logout();
-            navigate("/login");
-          }}
-          className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
-        >
-          <LogOut size={17} />
-          Déconnexion
-        </button>
+        <div className="space-y-1">
+          <NavLink
+            to="/compte"
+            className={({ isActive }) =>
+              `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                isActive
+                  ? "bg-white/10 text-[var(--color-brass)]"
+                  : "text-white/75 hover:bg-white/5 hover:text-white"
+              }`
+            }
+          >
+            <UserCircle size={17} />
+            Mon compte
+          </NavLink>
+          <button
+            onClick={() => {
+              logout();
+              navigate("/login");
+            }}
+            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
+          >
+            <LogOut size={17} />
+            Déconnexion
+          </button>
+        </div>
       </aside>
 
       <div className="flex-1">
@@ -98,7 +114,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           <div />
           <div className="flex items-center gap-4">
             <NotificationBell />
-            <div className="flex items-center gap-2 text-sm">
+            <NavLink
+              to="/compte"
+              className="flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors hover:bg-[var(--color-paper-2)]"
+            >
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-paper-2)] font-display text-[var(--color-ink)]">
                 {user.prenom[0]}
                 {user.nom[0]}
@@ -106,7 +125,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <span className="text-[var(--color-ink-2)]">
                 {user.prenom} {user.nom}
               </span>
-            </div>
+            </NavLink>
           </div>
         </header>
         <main className="p-8">{children}</main>

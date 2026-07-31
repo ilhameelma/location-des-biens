@@ -148,6 +148,49 @@ services:
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     networks:
       - smartrent_net
+  # ============================================================
+# Étape 18 — Recherche avancée (Elasticsearch)
+# ============================================================
+# À ajouter dans la section `services:` de ton docker-compose.yml existant
+# (au même niveau que postgres, minio, kafka, airflow...).
+#
+# Choix de config pour un contexte PFE / poste de développement local :
+#   - single-node : pas de cluster, inutile pour la volumétrie du projet
+#   - xpack.security.enabled=false : pas d'authentification/TLS à gérer en
+#     local (à ne PAS faire tel quel en production — mentionné comme
+#     limite connue dans le rapport de PFE, cf. README_PHASE4_ETAPE18.md)
+#   - mémoire JVM plafonnée à 512m : suffisant pour quelques milliers de
+#     biens, évite qu'Elasticsearch monopolise la RAM du poste de dev
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.1
+    container_name: smartrent_elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+# ------------------------------------------------------------
+# À ajouter dans la section `volumes:` de premier niveau (à côté de
+# postgres_data, kafka_data, etc.) :
+#
+#   elasticsearch_data:
+#
+# ------------------------------------------------------------
+
+# Vérification une fois démarré :
+#   docker compose up -d elasticsearch
+#   curl http://localhost:9200          -> doit répondre avec cluster_name etc.
+#   curl http://localhost:9200/_cat/indices?v   -> liste des index (vide au début)
 
   # ------------------------------------------------------------
   # Spark — étape 11 (ETL/traitement)
@@ -317,3 +360,4 @@ volumes:
   postgres_airflow_data:
   minio_data:
   kafka_data:
+  elasticsearch_data:

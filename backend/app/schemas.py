@@ -6,8 +6,9 @@ from pydantic import BaseModel, EmailStr, ConfigDict, Field
 
 Role = Literal["admin", "proprietaire", "client"]
 StatutVerification = Literal["en_attente", "verifie", "rejete"]
-TypeBien = Literal["maison", "appartement", "magasin", "garage", "bureau", "terrain"]
-StatutBien = Literal["disponible", "loue", "en_attente", "suspendu"]
+TypeBien = Literal["maison", "appartement", "magasin", "garage", "bureau", "terrain", "villa"]
+TypeTransaction = Literal["location", "vente"]
+StatutBien = Literal["disponible", "loue", "vendu", "en_attente", "suspendu"]
 StatutReservation = Literal["en_attente", "confirmee", "refusee", "annulee"]
 StatutContrat = Literal["actif", "termine", "resilie"]
 StatutPaiement = Literal["en_attente", "reussi", "echoue", "rembourse"]
@@ -49,6 +50,20 @@ class UtilisateurOut(BaseModel):
     date_creation: datetime
 
 
+class UtilisateurUpdate(BaseModel):
+    """Page « Mon compte » : mise à jour du profil (tous les champs optionnels,
+    seuls ceux envoyés par le front-end sont modifiés)."""
+    nom: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    prenom: Optional[str] = Field(default=None, min_length=1, max_length=100)
+    email: Optional[EmailStr] = None
+    telephone: Optional[str] = Field(default=None, max_length=20)
+
+
+class ChangePasswordRequest(BaseModel):
+    mot_de_passe_actuel: str
+    nouveau_mot_de_passe: str = Field(min_length=8)
+
+
 # ---------- Bien ----------
 class PhotoBienOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -61,6 +76,7 @@ class BienCreate(BaseModel):
     titre: str
     description: Optional[str] = None
     type_bien: TypeBien
+    type_transaction: TypeTransaction = "location"
     adresse: str
     ville: str
     superficie: Optional[float] = None
@@ -74,7 +90,10 @@ class BienUpdate(BaseModel):
     titre: Optional[str] = None
     description: Optional[str] = None
     prix: Optional[float] = None
+    type_transaction: Optional[TypeTransaction] = None
     statut: Optional[StatutBien] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class BienOut(BaseModel):
@@ -84,6 +103,7 @@ class BienOut(BaseModel):
     titre: str
     description: Optional[str] = None
     type_bien: TypeBien
+    type_transaction: TypeTransaction
     adresse: str
     ville: str
     superficie: Optional[float] = None
@@ -168,6 +188,11 @@ class AvisOut(BaseModel):
     note: int
     commentaire: Optional[str] = None
     date_creation: datetime
+    # Champs enrichis (jointure faite côté routeur) — utiles pour l'affichage
+    # côté propriétaire ("avis reçus") sans requête supplémentaire par avis.
+    client_nom: Optional[str] = None
+    client_prenom: Optional[str] = None
+    bien_titre: Optional[str] = None
 
 
 # ---------- Reclamation ----------

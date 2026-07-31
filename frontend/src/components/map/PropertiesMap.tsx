@@ -110,7 +110,9 @@ export default function PropertiesMap({
                   <p className="text-xs text-gray-600">{bien.ville}</p>
                   <p className="font-mono text-sm font-semibold">
                     {bien.prix.toLocaleString("fr-MA")} MAD{" "}
-                    <span className="text-xs font-normal text-gray-500">/ mois</span>
+                    {bien.type_transaction !== "vente" && (
+                      <span className="text-xs font-normal text-gray-500">/ mois</span>
+                    )}
                   </p>
                   <div className="mt-2 flex gap-1.5">
                     {onContact && (
@@ -130,7 +132,7 @@ export default function PropertiesMap({
                         className="flex flex-1 items-center justify-center gap-1 rounded bg-[#c08552] py-1 text-xs font-medium text-white hover:bg-[#9c6b3f]"
                       >
                         <CalendarPlus size={12} />
-                        Réserver
+                        {bien.type_transaction === "vente" ? "Faire une offre" : "Réserver"}
                       </button>
                     )}
                   </div>

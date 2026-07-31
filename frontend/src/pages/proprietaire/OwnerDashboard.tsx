@@ -5,12 +5,13 @@ import PropertyCard from "../../components/ui/PropertyCard";
 import EstimationWidget from "../../components/ia/EstimationWidget";
 import LocationPicker from "../../components/map/LocationPicker";
 import { api, formatErrorDetail } from "../../lib/api";
-import type { Bien, TypeBien } from "../../types";
+import type { Bien, TypeBien, TypeTransaction } from "../../types";
 
 const TYPES: TypeBien[] = ["appartement", "maison", "villa", "bureau", "magasin", "garage", "terrain"];
 
 export default function OwnerDashboard() {
   const [biens, setBiens] = useState<Bien[]>([]);
+  const [filtreTransaction, setFiltreTransaction] = useState<"tous" | TypeTransaction>("tous");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -20,6 +21,7 @@ export default function OwnerDashboard() {
     titre: "",
     description: "",
     type_bien: "appartement" as TypeBien,
+    type_transaction: "location" as TypeTransaction,
     ville: "",
     adresse: "",
     prix: "",
@@ -42,8 +44,10 @@ export default function OwnerDashboard() {
 
   const fetchBiens = () => {
     setLoading(true);
+    const params = new URLSearchParams();
+    if (filtreTransaction !== "tous") params.set("type_transaction", filtreTransaction);
     api
-      .get<Bien[]>("/biens/me/annonces")
+      .get<Bien[]>(`/biens/me/annonces?${params.toString()}`)
       .then(setBiens)
       .catch((err) => setError(err instanceof Error ? err.message : "Erreur de chargement"))
       .finally(() => setLoading(false));
@@ -51,7 +55,8 @@ export default function OwnerDashboard() {
 
   useEffect(() => {
     fetchBiens();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtreTransaction]);
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -78,6 +83,7 @@ export default function OwnerDashboard() {
       titre: "",
       description: "",
       type_bien: "appartement",
+      type_transaction: "location",
       ville: "",
       adresse: "",
       prix: "",
@@ -102,6 +108,7 @@ export default function OwnerDashboard() {
         titre: form.titre,
         description: form.description || null,
         type_bien: form.type_bien,
+        type_transaction: form.type_transaction,
         ville: form.ville,
         adresse: form.adresse,
         prix: Number(form.prix),
@@ -196,6 +203,25 @@ export default function OwnerDashboard() {
         </button>
       </div>
 
+      <div className="mt-4 flex w-fit overflow-hidden rounded-md border border-[var(--color-line)]">
+        {(["tous", "location", "vente"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setFiltreTransaction(v)}
+            className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+              v !== "tous" ? "border-l border-[var(--color-line)]" : ""
+            } ${
+              filtreTransaction === v
+                ? "bg-[var(--color-brass)] text-white"
+                : "bg-[var(--color-card)] text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)]"
+            }`}
+          >
+            {v === "tous" ? "Tous" : v === "location" ? "À louer" : "À vendre"}
+          </button>
+        ))}
+      </div>
+
       {error && (
         <div className="mt-4 rounded-md bg-[var(--color-rust-bg)] px-4 py-2 text-sm text-[var(--color-rust)]">
           {error}
@@ -229,6 +255,35 @@ export default function OwnerDashboard() {
                 </option>
               ))}
             </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">
+              Transaction
+            </label>
+            <div className="flex overflow-hidden rounded-md border border-[var(--color-line)]">
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, type_transaction: "location" })}
+                className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                  form.type_transaction === "location"
+                    ? "bg-[var(--color-brass)] text-white"
+                    : "text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)]"
+                }`}
+              >
+                Louer
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm({ ...form, type_transaction: "vente" })}
+                className={`flex-1 border-l border-[var(--color-line)] py-2 text-sm font-medium transition-colors ${
+                  form.type_transaction === "vente"
+                    ? "bg-[var(--color-brass)] text-white"
+                    : "text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)]"
+                }`}
+              >
+                Vendre
+              </button>
+            </div>
           </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Ville</label>
@@ -284,7 +339,9 @@ export default function OwnerDashboard() {
           />
 
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Prix (MAD/mois)</label>
+            <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">
+              Prix {form.type_transaction === "vente" ? "(MAD)" : "(MAD/mois)"}
+            </label>
             <input
               required
               type="number"
