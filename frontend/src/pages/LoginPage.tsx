@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Home, Building2, Users, Key } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import type { Role } from "../types";
+import logo from "../assets/logo_immo1.png";
 
 const ROLE_CARDS: { role: Role; label: string; icon: typeof Home }[] = [
   { role: "client", label: "Client", icon: Key },
@@ -44,12 +45,19 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-ink)] px-4">
       <div className="w-full max-w-md">
-        <div className="mb-8 flex items-center justify-center gap-2 text-white">
-          <Home size={22} className="text-[var(--color-brass)]" />
-          <span className="font-display text-2xl">ImmoVision</span>
-        </div>
+        
 
         <form onSubmit={handleSubmit} className="rounded-lg bg-[var(--color-card)] p-8 shadow-xl">
+          {/* Logo */}
+
+  <div className="mb-6 flex justify-center">
+    <img
+      src={logo}
+      alt="ImmoVision"
+      className="h-24 w-auto object-contain"
+    />
+  </div>
+
           <div className="mb-5 flex gap-1 rounded-md bg-[var(--color-paper-2)] p-1">
             <button
               type="button"

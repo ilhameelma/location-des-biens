@@ -24,7 +24,8 @@ export type TypeBien =
   | "terrain"
   | "villa";
 
-export type StatutBien = "disponible" | "loue" | "en_attente" | "suspendu";
+export type StatutBien = "disponible" | "loue" | "vendu" | "en_attente" | "suspendu";
+export type TypeTransaction = "location" | "vente";
 
 export interface PhotoBien {
   id: string;
@@ -38,6 +39,7 @@ export interface Bien {
   titre: string;
   description?: string | null;
   type_bien: TypeBien;
+  type_transaction: TypeTransaction;
   adresse: string;
   ville: string;
   superficie?: number | null;
@@ -111,6 +113,13 @@ export interface Reclamation {
   type_reclamation: string;
   description: string;
   statut: StatutReclamation;
+  date_creation: string;
+  bien_titre?: string | null;
+}
+
+export interface Favori {
+  id: string;
+  bien_id: string;
   date_creation: string;
 }
 

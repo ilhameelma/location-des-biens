@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { MapPin, Ruler, CalendarPlus, MessageCircle, Tag } from "lucide-react";
+import { MapPin, Ruler, CalendarPlus, MessageCircle, Tag, Heart } from "lucide-react";
 import type { Bien } from "../../types";
 import StatusBadge from "./StatusBadge";
 import ImageCarousel from "./ImageCarousel";
@@ -18,15 +18,38 @@ export default function PropertyCard({
   bien,
   onReserve,
   onContact,
+  isFavori,
+  onToggleFavori,
 }: {
   bien: Bien;
   onReserve?: (bien: Bien) => void;
   onContact?: (bien: Bien) => void;
+  /** Si fourni (avec onToggleFavori), affiche le bouton "cœur" enregistrer/retirer. */
+  isFavori?: boolean;
+  onToggleFavori?: (bien: Bien) => void;
 }) {
   const isVente = bien.type_transaction === "vente";
 
   return (
     <div className="group relative overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-card)] transition-shadow hover:shadow-md">
+      {/* Bouton "enregistrer" (cœur) — coin haut-gauche, opposé aux badges de statut */}
+      {onToggleFavori && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onToggleFavori(bien);
+          }}
+          aria-label={isFavori ? "Retirer des annonces enregistrées" : "Enregistrer cette annonce"}
+          className={`absolute left-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-white/90 shadow-sm transition-colors hover:bg-white ${
+            isFavori ? "text-[var(--color-rust)]" : "text-[var(--color-ink-2)]"
+          }`}
+        >
+          <Heart size={16} className={isFavori ? "fill-current" : ""} />
+        </button>
+      )}
+
       {/* Badges statut + type de transaction */}
       <div className="absolute right-3 top-3 z-10 flex flex-col items-end gap-1.5">
         <StatusBadge status={bien.statut} />

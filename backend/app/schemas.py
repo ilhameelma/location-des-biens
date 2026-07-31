@@ -213,10 +213,34 @@ class ReclamationOut(BaseModel):
     description: str
     statut: StatutReclamation
     date_creation: datetime
+    bien_titre: Optional[str] = None
+    # Identité du client à l'origine de la réclamation (le "plaignant")
+    client_nom: Optional[str] = None
+    client_prenom: Optional[str] = None
+    client_email: Optional[str] = None
+    client_telephone: Optional[str] = None
+    # Identité du propriétaire du bien concerné (déduite via bien.proprietaire_id)
+    proprietaire_id: Optional[uuid.UUID] = None
+    proprietaire_nom: Optional[str] = None
+    proprietaire_prenom: Optional[str] = None
+    proprietaire_email: Optional[str] = None
+    proprietaire_telephone: Optional[str] = None
 
 
 class ReclamationStatutUpdate(BaseModel):
     statut: StatutReclamation
+
+
+# ---------- Favoris (annonces enregistrées) ----------
+class FavoriCreate(BaseModel):
+    bien_id: uuid.UUID
+
+
+class FavoriOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    bien_id: uuid.UUID
+    date_creation: datetime
 
 
 # ---------- Messagerie ----------

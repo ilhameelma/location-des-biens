@@ -8,12 +8,15 @@ import {
   Tag,
   CalendarPlus,
   MessageCircle,
+  Heart,
+  Flag,
 } from "lucide-react";
 import ImageCarousel, { resolvePhotoUrl } from "../components/ui/ImageCarousel";
 import StatusBadge from "../components/ui/StatusBadge";
 import PropertiesMap from "../components/map/PropertiesMap";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { emitFavorisChanged } from "../lib/favorisEvents";
 import type { Bien, Conversation } from "../types";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -36,6 +39,8 @@ export default function BienDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [isFavori, setIsFavori] = useState(false);
+  const [favoriBusy, setFavoriBusy] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -49,6 +54,36 @@ export default function BienDetailPage() {
       .catch((err) => setError(err instanceof Error ? err.message : "Bien introuvable"))
       .finally(() => setLoading(false));
   }, [id]);
+
+  // Enregistrement de l'annonce (favoris) — uniquement pertinent pour un client.
+  useEffect(() => {
+    if (!id || user?.role !== "client") return;
+    api
+      .get<string[]>("/favoris/me/ids")
+      .then((ids) => setIsFavori(ids.includes(id)))
+      .catch(() => {
+        /* silencieux : l'état "enregistré" reste simplement à false */
+      });
+  }, [id, user]);
+
+  const handleToggleFavori = async () => {
+    if (!bien) return;
+    setFavoriBusy(true);
+    try {
+      if (isFavori) {
+        await api.del(`/favoris/${bien.id}`);
+        setIsFavori(false);
+      } else {
+        await api.post("/favoris", { bien_id: bien.id });
+        setIsFavori(true);
+      }
+      emitFavorisChanged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de mettre à jour les favoris");
+    } finally {
+      setFavoriBusy(false);
+    }
+  };
 
   const handleReserve = async () => {
     if (!bien) return;
@@ -189,16 +224,33 @@ export default function BienDetailPage() {
         {/* Colonne latérale : infos clés + actions */}
         <div className="lg:col-span-1">
           <div className="sticky top-6 rounded-lg border border-[var(--color-line)] bg-[var(--color-card)] p-5">
-            <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge status={bien.statut} />
-              <span
-                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium font-mono tracking-wide uppercase ${
-                  isVente ? "bg-[#f4e9df] text-[var(--color-brass-deep)]" : "bg-[var(--color-paper-2)] text-[var(--color-ink-2)]"
-                }`}
-              >
-                <Tag size={11} />
-                {isVente ? "À vendre" : "À louer"}
-              </span>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <StatusBadge status={bien.statut} />
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium font-mono tracking-wide uppercase ${
+                    isVente ? "bg-[#f4e9df] text-[var(--color-brass-deep)]" : "bg-[var(--color-paper-2)] text-[var(--color-ink-2)]"
+                  }`}
+                >
+                  <Tag size={11} />
+                  {isVente ? "À vendre" : "À louer"}
+                </span>
+              </div>
+              {user?.role === "client" && (
+                <button
+                  type="button"
+                  onClick={handleToggleFavori}
+                  disabled={favoriBusy}
+                  aria-label={isFavori ? "Retirer des annonces enregistrées" : "Enregistrer cette annonce"}
+                  className={`flex h-9 w-9 items-center justify-center rounded-full border transition-colors disabled:opacity-60 ${
+                    isFavori
+                      ? "border-[var(--color-rust)] text-[var(--color-rust)]"
+                      : "border-[var(--color-line)] text-[var(--color-ink-2)] hover:border-[var(--color-rust)] hover:text-[var(--color-rust)]"
+                  }`}
+                >
+                  <Heart size={16} className={isFavori ? "fill-current" : ""} />
+                </button>
+              )}
             </div>
 
             <h1 className="mt-3 font-display text-2xl leading-snug text-[var(--color-ink)]">
@@ -247,6 +299,18 @@ export default function BienDetailPage() {
                     {isVente ? "Faire une offre" : "Réserver"}
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      `/client/reclamations?bien_id=${bien.id}&titre=${encodeURIComponent(bien.titre)}`
+                    )
+                  }
+                  className="flex items-center justify-center gap-2 py-1.5 text-xs font-medium text-[var(--color-ink-3)] transition-colors hover:text-[var(--color-rust)]"
+                >
+                  <Flag size={13} />
+                  Signaler cette annonce
+                </button>
               </div>
             )}
 

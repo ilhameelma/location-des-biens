@@ -155,6 +155,20 @@ CREATE TABLE reclamation (
 CREATE INDEX idx_reclamation_utilisateur ON reclamation(utilisateur_id);
 
 -- ============================================================
+-- Table : favori (annonces enregistrées par un client)
+-- ============================================================
+CREATE TABLE favori (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    utilisateur_id      UUID NOT NULL REFERENCES utilisateur(id) ON DELETE CASCADE,
+    bien_id             UUID NOT NULL REFERENCES bien(id) ON DELETE CASCADE,
+    date_creation       TIMESTAMP NOT NULL DEFAULT now(),
+    CONSTRAINT uq_favori_utilisateur_bien UNIQUE (utilisateur_id, bien_id)
+);
+
+CREATE INDEX idx_favori_utilisateur ON favori(utilisateur_id);
+CREATE INDEX idx_favori_bien ON favori(bien_id);
+
+-- ============================================================
 -- Table : conversation
 -- ============================================================
 CREATE TABLE conversation (

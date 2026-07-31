@@ -1,12 +1,26 @@
 import { type ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
-  Building2, LayoutGrid, Search, FileSignature, Wallet, MessageSquare,
-  Star, ShieldAlert, Users, BarChart3, LogOut, Home, UserCircle,
+  Building2,
+  LayoutGrid,
+  Search,
+  FileSignature,
+  Wallet,
+  MessageSquare,
+  Star,
+  ShieldAlert,
+  Users,
+  BarChart3,
+  LogOut,
+  Home,
+  UserCircle,
+  Heart,
 } from "lucide-react";
 import { useAuth } from "../../lib/auth";
+import { useFavorisCount } from "../../lib/useFavorisCount";
 import type { Role } from "../../types";
 import NotificationBell from "./NotificationBell";
+import logo from "../../assets/logo_immo1.png";
 
 interface NavItem {
   to: string;
@@ -17,11 +31,14 @@ interface NavItem {
 const NAV_BY_ROLE: Record<Role, NavItem[]> = {
   client: [
     { to: "/client", label: "Rechercher", icon: Search },
+    { to: "/client/favoris", label: "Annonces enregistrées", icon: Heart },
     { to: "/client/reservations", label: "Réservations", icon: FileSignature },
     { to: "/client/paiements", label: "Paiements", icon: Wallet },
     { to: "/client/messages", label: "Messagerie", icon: MessageSquare },
     { to: "/client/avis", label: "Mes avis", icon: Star },
+    { to: "/client/reclamations", label: "Réclamations", icon: ShieldAlert },
   ],
+
   proprietaire: [
     { to: "/proprietaire", label: "Mes biens", icon: LayoutGrid },
     { to: "/proprietaire/demandes", label: "Demandes", icon: FileSignature },
@@ -29,6 +46,7 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: "/proprietaire/messages", label: "Messagerie", icon: MessageSquare },
     { to: "/proprietaire/avis", label: "Avis clients", icon: Star },
   ],
+
   admin: [
     { to: "/admin", label: "Vue d'ensemble", icon: BarChart3 },
     { to: "/admin/utilisateurs", label: "Utilisateurs", icon: Users },
@@ -38,98 +56,163 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
 };
 
 const ROLE_LABEL: Record<Role, string> = {
-  client: "Espace Client",
-  proprietaire: "Espace Propriétaire",
-  admin: "Administration",
+  client: "ESPACE CLIENT",
+  proprietaire: "ESPACE PROPRIÉTAIRE",
+  admin: "ADMINISTRATION",
 };
 
-export default function DashboardLayout({ children }: { children: ReactNode }) {
+export default function DashboardLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const favorisCount = useFavorisCount();
 
   if (!user) return null;
+
   const items = NAV_BY_ROLE[user.role];
 
   return (
     <div className="flex min-h-screen bg-[var(--color-paper)]">
-      <aside className="flex w-64 flex-col justify-between bg-[var(--color-ink)] px-4 py-6 text-white">
+
+      {/* ================= SIDEBAR ================= */}
+
+      <aside className="flex w-64 flex-col justify-between border-r border-[var(--color-line)] bg-[var(--color-card)] px-4 py-6">
+
         <div>
-          <div className="mb-8 flex items-center gap-2 px-2">
-            <Home size={20} className="text-[var(--color-brass)]" />
-            <span className="font-display text-lg">SmartRent</span>
+
+          {/* Logo */}
+
+          <div className="mb-8 flex items-center gap-3 px-2">
+            <img
+              src={logo}
+              alt="ImmoVision"
+              className="h-20 w-auto"
+            />
+
+            <span className="font-display text-2xl font-semibold text-[var(--color-ink)]">
+              ImmoVision
+            </span>
           </div>
-          <div className="mb-4 px-2 font-mono text-[11px] uppercase tracking-widest text-white/50">
+
+          {/* Role */}
+
+          <div className="mb-4 px-2 font-mono text-[11px] uppercase tracking-widest text-[var(--color-ink-3)]">
             {ROLE_LABEL[user.role]}
           </div>
+
+          {/* Menu */}
+
           <nav className="space-y-1">
+
             {items.map((item) => (
+
               <NavLink
                 key={item.to}
                 to={item.to}
                 end={item.to === `/${user.role}`}
+
                 className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+                  `flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
                     isActive
-                      ? "bg-white/10 text-[var(--color-brass)]"
-                      : "text-white/75 hover:bg-white/5 hover:text-white"
+                      ? "bg-[var(--color-brass-bg)] text-[var(--color-brass)] shadow-sm"
+                      : "text-[var(--color-ink)] hover:bg-[var(--color-paper-2)] hover:text-[var(--color-brass)]"
                   }`
                 }
               >
-                <item.icon size={17} />
-                {item.label}
+
+                <span className="flex items-center gap-3">
+                  <item.icon size={18} />
+                  {item.label}
+                </span>
+
+                {item.to === "/client/favoris" && favorisCount > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-brass)] px-1.5 text-[10px] font-semibold text-white">
+                    {favorisCount > 99 ? "99+" : favorisCount}
+                  </span>
+                )}
+
               </NavLink>
+
             ))}
+
           </nav>
+
         </div>
 
+        {/* Bas Sidebar */}
+
         <div className="space-y-1">
+
           <NavLink
             to="/compte"
+
             className={({ isActive }) =>
-              `flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors ${
+              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
                 isActive
-                  ? "bg-white/10 text-[var(--color-brass)]"
-                  : "text-white/75 hover:bg-white/5 hover:text-white"
+                  ? "bg-[var(--color-brass-bg)] text-[var(--color-brass)]"
+                  : "text-[var(--color-ink)] hover:bg-[var(--color-paper-2)] hover:text-[var(--color-brass)]"
               }`
             }
           >
-            <UserCircle size={17} />
+            <UserCircle size={18} />
             Mon compte
           </NavLink>
+
           <button
             onClick={() => {
               logout();
               navigate("/login");
             }}
-            className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-white/60 transition-colors hover:bg-white/5 hover:text-white"
+
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--color-ink-2)] transition-all duration-200 hover:bg-[var(--color-rust-bg)] hover:text-[var(--color-rust)]"
           >
-            <LogOut size={17} />
+            <LogOut size={18} />
             Déconnexion
           </button>
+
         </div>
+
       </aside>
 
+      {/* ================= CONTENU ================= */}
+
       <div className="flex-1">
+
         <header className="flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-card)] px-8 py-4">
+
           <div />
+
           <div className="flex items-center gap-4">
+
             <NotificationBell />
+
             <NavLink
               to="/compte"
-              className="flex items-center gap-2 rounded-md px-2 py-1 text-sm transition-colors hover:bg-[var(--color-paper-2)]"
+              className="flex items-center gap-2 rounded-lg px-2 py-1 transition hover:bg-[var(--color-paper-2)]"
             >
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-paper-2)] font-display text-[var(--color-ink)]">
                 {user.prenom[0]}
                 {user.nom[0]}
               </div>
-              <span className="text-[var(--color-ink-2)]">
+
+              <span className="text-sm text-[var(--color-ink-2)]">
                 {user.prenom} {user.nom}
               </span>
             </NavLink>
+
           </div>
+
         </header>
-        <main className="p-8">{children}</main>
+
+        <main className="p-8">
+          {children}
+        </main>
+
       </div>
+
     </div>
   );
 }

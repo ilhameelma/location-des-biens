@@ -8,6 +8,8 @@ import ReservationsPage from "./pages/client/ReservationsPage";
 import PaiementsPage from "./pages/client/PaiementsPage";
 import MessagesPage from "./pages/client/MessagesPage";
 import AvisPage from "./pages/client/AvisPage";
+import FavorisPage from "./pages/client/FavorisPage";
+import ClientReclamationsPage from "./pages/client/ReclamationsPage";
 
 import OwnerDashboard from "./pages/proprietaire/OwnerDashboard";
 import DemandesPage from "./pages/proprietaire/DemandesPage";
@@ -37,6 +39,8 @@ export default function App() {
           <Route path="/client/paiements" element={<ProtectedRoute role="client"><PaiementsPage /></ProtectedRoute>} />
           <Route path="/client/messages" element={<ProtectedRoute role="client"><MessagesPage /></ProtectedRoute>} />
           <Route path="/client/avis" element={<ProtectedRoute role="client"><AvisPage /></ProtectedRoute>} />
+          <Route path="/client/favoris" element={<ProtectedRoute role="client"><FavorisPage /></ProtectedRoute>} />
+          <Route path="/client/reclamations" element={<ProtectedRoute role="client"><ClientReclamationsPage /></ProtectedRoute>} />
 
           {/* Espace Propriétaire */}
           <Route path="/proprietaire" element={<ProtectedRoute role="proprietaire"><OwnerDashboard /></ProtectedRoute>} />

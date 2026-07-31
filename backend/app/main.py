@@ -12,6 +12,7 @@ from .routers import (
     paiements,
     avis,
     reclamations,
+    favoris,
     messagerie,
     notifications,
     utilisateurs,
@@ -76,6 +77,7 @@ app.include_router(contrats.router, prefix="/api")
 app.include_router(paiements.router, prefix="/api")
 app.include_router(avis.router, prefix="/api")
 app.include_router(reclamations.router, prefix="/api")
+app.include_router(favoris.router, prefix="/api")
 app.include_router(messagerie.router, prefix="/api")
 app.include_router(notifications.router, prefix="/api")
 app.include_router(ia.router, prefix="/api")

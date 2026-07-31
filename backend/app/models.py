@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date
 
-from sqlalchemy import String, Numeric, Boolean, ForeignKey, DateTime, Date, Text, Integer, SmallInteger, Double
+from sqlalchemy import String, Numeric, Boolean, ForeignKey, DateTime, Date, Text, Integer, SmallInteger, Double, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -130,6 +130,20 @@ class Reclamation(Base):
     type_reclamation: Mapped[str] = mapped_column(String(50))
     description: Mapped[str] = mapped_column(Text)
     statut: Mapped[str] = mapped_column(String(20), default="ouverte")  # ouverte|en_cours|resolue|rejetee
+    date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Favori(Base):
+    """Annonces enregistrées ("mises de côté") par un client."""
+
+    __tablename__ = "favori"
+    __table_args__ = (
+        UniqueConstraint("utilisateur_id", "bien_id", name="uq_favori_utilisateur_bien"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
+    utilisateur_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("utilisateur.id", ondelete="CASCADE"))
+    bien_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bien.id", ondelete="CASCADE"))
     date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
