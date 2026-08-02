@@ -2,7 +2,7 @@
 // Cloche de notification temps réel : badge de compteur, menu déroulant
 // avec l'historique, clic pour marquer comme lu, "tout marquer comme lu".
 import { useEffect, useRef, useState } from "react";
-import { Bell, CalendarClock, Wallet, MessageSquare, CheckCheck } from "lucide-react";
+import { Bell, CalendarClock, Wallet, MessageSquare, CheckCheck, AlertTriangle } from "lucide-react";
 import { useNotifications } from "../../lib/useNotifications";
 import type { Notification } from "../../types";
 
@@ -10,7 +10,12 @@ const ICONS: Record<string, typeof Bell> = {
   reservation: CalendarClock,
   paiement: Wallet,
   message: MessageSquare,
+  avertissement: AlertTriangle,
 };
+
+// Types "sensibles" affichés avec un badge d'avertissement (fond/texte rouille)
+// plutôt que le style brass neutre — ex. réclamation reçue par un propriétaire.
+const WARNING_TYPES = new Set(["avertissement"]);
 
 function formatRelatif(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -25,31 +30,48 @@ function formatRelatif(iso: string) {
 
 function NotificationItem({ notif, onClick }: { notif: Notification; onClick: () => void }) {
   const Icon = ICONS[notif.type_notification] ?? Bell;
+  const isWarning = WARNING_TYPES.has(notif.type_notification);
   return (
     <button
       onClick={onClick}
       className={`flex w-full items-start gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--color-paper-2)] ${
-        notif.lu ? "" : "bg-[var(--color-brass)]/5"
+        notif.lu ? "" : isWarning ? "bg-[var(--color-rust)]/8" : "bg-[var(--color-brass)]/5"
       }`}
     >
       <span
         className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-          notif.lu
-            ? "bg-[var(--color-paper-2)] text-[var(--color-ink-3)]"
-            : "bg-[var(--color-brass)]/15 text-[var(--color-brass-deep)]"
+          isWarning
+            ? "bg-[var(--color-rust)]/15 text-[var(--color-rust)]"
+            : notif.lu
+              ? "bg-[var(--color-paper-2)] text-[var(--color-ink-3)]"
+              : "bg-[var(--color-brass)]/15 text-[var(--color-brass-deep)]"
         }`}
       >
         <Icon size={14} />
       </span>
       <span className="min-w-0 flex-1">
-        <span className={`block text-sm ${notif.lu ? "text-[var(--color-ink-2)]" : "text-[var(--color-ink)] font-medium"}`}>
+        <span
+          className={`block text-sm ${
+            isWarning
+              ? "font-medium text-[var(--color-rust)]"
+              : notif.lu
+                ? "text-[var(--color-ink-2)]"
+                : "text-[var(--color-ink)] font-medium"
+          }`}
+        >
           {notif.contenu}
         </span>
         <span className="mt-0.5 block font-mono text-[10px] text-[var(--color-ink-3)]">
           {formatRelatif(notif.date_creation)}
         </span>
       </span>
-      {!notif.lu && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--color-brass)]" />}
+      {!notif.lu && (
+        <span
+          className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+            isWarning ? "bg-[var(--color-rust)]" : "bg-[var(--color-brass)]"
+          }`}
+        />
+      )}
     </button>
   );
 }

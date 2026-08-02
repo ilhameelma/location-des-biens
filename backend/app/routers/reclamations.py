@@ -113,6 +113,32 @@ def create_reclamation(
             email_subject="SmartRent — Nouvelle réclamation à traiter",
         )
 
+    # Avertissement au propriétaire visé par la réclamation : notification
+    # in-app (badge "warning", voir NotificationBell.tsx) + email envoyé
+    # systématiquement (force_email=True), qu'il soit connecté ou non — un
+    # signalement client doit toujours laisser une trace dans sa boîte mail,
+    # pas seulement un badge qu'il pourrait manquer.
+    if enriched.proprietaire_id:
+        type_label = TYPE_LABELS.get(reclamation.type_reclamation, reclamation.type_reclamation)
+        avertissement = (
+            f"⚠️ Un client a déposé une réclamation vous concernant "
+            f"({type_label})"
+        )
+        if enriched.bien_titre:
+            avertissement += f" au sujet de l'annonce « {enriched.bien_titre} »"
+        avertissement += (
+            f" : « {reclamation.description} ». "
+            "Notre équipe va l'examiner ; vous serez tenu informé de son traitement."
+        )
+        notify(
+            db,
+            enriched.proprietaire_id,
+            "avertissement",
+            avertissement,
+            email_subject="SmartRent — Réclamation d'un client vous concernant",
+            force_email=True,
+        )
+
     return enriched
 
 

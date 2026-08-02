@@ -140,9 +140,12 @@ export interface Message {
   id: string;
   conversation_id: string;
   expediteur_id: string;
-  contenu: string;
+  contenu?: string | null;
   date_envoi: string;
   lu: boolean;
+  piece_jointe_url?: string | null;
+  piece_jointe_nom?: string | null;
+  piece_jointe_type?: "image" | "pdf" | null;
 }
 
 export interface Notification {

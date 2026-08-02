@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "./lib/auth";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 
 import SearchPage from "./pages/client/SearchPage";
@@ -30,7 +31,8 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Routes>
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          {/* Page d'accueil publique — accessible à tout visiteur, avant connexion/inscription */}
+          <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
 
           {/* Espace Client */}
@@ -61,7 +63,7 @@ export default function App() {
           <Route path="/admin/biens" element={<ProtectedRoute role="admin"><AnnoncesPage /></ProtectedRoute>} />
           <Route path="/admin/reclamations" element={<ProtectedRoute role="admin"><ReclamationsPage /></ProtectedRoute>} />
 
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>

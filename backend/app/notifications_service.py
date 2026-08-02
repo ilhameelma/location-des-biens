@@ -75,12 +75,19 @@ def notify(
     type_notification: str,
     contenu: str,
     email_subject: str | None = None,
+    force_email: bool = False,
 ) -> models.Notification:
     """
     Crée une notification pour `utilisateur_id`, la pousse en temps réel si
     l'utilisateur est connecté, et envoie un email si l'utilisateur n'a
     actuellement aucune connexion active à l'application (donc probablement
     hors ligne) et que le SMTP est configuré.
+
+    `force_email=True` : envoie l'email systématiquement, même si
+    l'utilisateur est actuellement connecté (utilisé pour les notifications
+    sensibles — ex. avertissement suite à une réclamation — où l'on veut une
+    trace email garantie dans la boîte du destinataire, pas seulement un
+    badge dans l'application).
     """
     notification = models.Notification(
         utilisateur_id=utilisateur_id,
@@ -111,8 +118,9 @@ def notify(
     if loop is not None:
         asyncio.run_coroutine_threadsafe(notif_manager.broadcast(utilisateur_id, payload), loop)
 
-    # Email seulement si l'utilisateur n'a aucun onglet ouvert sur l'app.
-    if notif_manager.online_count(utilisateur_id) == 0:
+    # Email seulement si l'utilisateur n'a aucun onglet ouvert sur l'app —
+    # sauf si `force_email=True`, où l'email part dans tous les cas.
+    if force_email or notif_manager.online_count(utilisateur_id) == 0:
         user = db.get(models.Utilisateur, utilisateur_id)
         if user and user.email:
             send_email(user.email, email_subject or "SmartRent — Nouvelle notification", contenu)

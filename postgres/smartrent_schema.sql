@@ -189,7 +189,10 @@ CREATE TABLE message (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id     UUID NOT NULL REFERENCES conversation(id) ON DELETE CASCADE,
     expediteur_id       UUID NOT NULL REFERENCES utilisateur(id) ON DELETE CASCADE,
-    contenu             TEXT NOT NULL,
+    contenu             TEXT,
+    piece_jointe_url    TEXT,
+    piece_jointe_nom    TEXT,
+    piece_jointe_type   TEXT CHECK (piece_jointe_type IN ('image', 'pdf')),
     lu                  BOOLEAN NOT NULL DEFAULT FALSE,
     date_envoi          TIMESTAMP NOT NULL DEFAULT now()
 );

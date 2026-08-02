@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Home, Building2, Users, Key } from "lucide-react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Home, Building2, Users, Key, ArrowLeft } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import type { Role } from "../types";
 import logo from "../assets/logo_immo1.png";
@@ -14,8 +14,13 @@ const ROLE_CARDS: { role: Role; label: string; icon: typeof Home }[] = [
 export default function LoginPage() {
   const { login, register } = useAuth();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
-  const [mode, setMode] = useState<"login" | "register">("login");
+  // La landing page peut renvoyer directement sur l'onglet "Inscription"
+  // via le lien /login?mode=register (bouton "Inscription" du header public).
+  const [mode, setMode] = useState<"login" | "register">(
+    searchParams.get("mode") === "register" ? "register" : "login"
+  );
   const [role, setRole] = useState<Role>("client");
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
@@ -45,7 +50,13 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[var(--color-ink)] px-4">
       <div className="w-full max-w-md">
-        
+        <Link
+          to="/"
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--color-paper-2)] transition-colors hover:text-white"
+        >
+          <ArrowLeft size={15} />
+          Retour à l'accueil
+        </Link>
 
         <form onSubmit={handleSubmit} className="rounded-lg bg-[var(--color-card)] p-8 shadow-xl">
           {/* Logo */}

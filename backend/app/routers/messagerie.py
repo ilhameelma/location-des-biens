@@ -8,19 +8,41 @@ Deux canaux exposés :
   par le front-end une fois la conversation ouverte, pour recevoir/envoyer
   les messages instantanément sans recharger.
 """
+import os
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from sqlalchemy.orm import Session
 
-from .. import models, schemas
+from .. import models, schemas, storage
 from ..database import get_db
 from ..deps import get_current_user
 from ..security import decode_access_token
 from ..ws_manager import manager
 
 router = APIRouter(prefix="/conversations", tags=["messagerie"])
+
+# Types de fichiers acceptés en pièce jointe et leur catégorie côté front-end
+# (détermine l'affichage : aperçu image vs carte fichier avec lien "Ouvrir").
+TYPES_PIECE_JOINTE_AUTORISES = {
+    "image/jpeg": "image",
+    "image/png": "image",
+    "image/webp": "image",
+    "image/gif": "image",
+    "application/pdf": "pdf",
+}
+TAILLE_MAX_PIECE_JOINTE = 10 * 1024 * 1024  # 10 Mo
 
 
 # ============================================================
@@ -54,6 +76,18 @@ def _to_conversation_out(conv: models.Conversation, current_user_id: uuid.UUID, 
         bien = db.get(models.Bien, conv.bien_id)
         bien_titre = bien.titre if bien else None
 
+    # Aperçu du dernier message : le texte s'il y en a, sinon une étiquette
+    # selon le type de pièce jointe (le dernier message peut être une photo
+    # ou un PDF envoyé sans commentaire).
+    dernier_apercu = None
+    if dernier:
+        if dernier.contenu:
+            dernier_apercu = dernier.contenu
+        elif dernier.piece_jointe_type == "image":
+            dernier_apercu = "📷 Photo"
+        elif dernier.piece_jointe_type == "pdf":
+            dernier_apercu = "📄 Document PDF"
+
     return schemas.ConversationOut(
         id=conv.id,
         bien_id=conv.bien_id,
@@ -62,7 +96,7 @@ def _to_conversation_out(conv: models.Conversation, current_user_id: uuid.UUID, 
         proprietaire_id=conv.proprietaire_id,
         autre_nom=autre.nom if autre else "?",
         autre_prenom=autre.prenom if autre else "?",
-        dernier_message=dernier.contenu if dernier else None,
+        dernier_message=dernier_apercu,
         date_dernier_message=dernier.date_envoi if dernier else None,
         non_lus=non_lus,
     )
@@ -204,6 +238,70 @@ async def send_message(
             "contenu": message.contenu,
             "date_envoi": message.date_envoi.isoformat(),
             "lu": message.lu,
+        },
+    )
+    return message
+
+
+@router.post("/{conversation_id}/messages/fichier", response_model=schemas.MessageOut, status_code=201)
+async def send_message_fichier(
+    conversation_id: uuid.UUID,
+    fichier: UploadFile = File(...),
+    contenu: str | None = Form(default=None),
+    db: Session = Depends(get_db),
+    current_user: models.Utilisateur = Depends(get_current_user),
+):
+    """
+    Envoie une pièce jointe (photo ou PDF) dans la conversation, avec un
+    texte d'accompagnement optionnel. Upload vers MinIO (même bucket que les
+    photos de biens, étape 7, sous un préfixe "messages/" dédié), diffusion
+    temps réel identique à `send_message` pour que les deux canaux (REST et
+    WebSocket) restent cohérents.
+    """
+    conv = db.get(models.Conversation, conversation_id)
+    if not conv or current_user.id not in (conv.proprietaire_id, conv.client_id):
+        raise HTTPException(status_code=403, detail="Accès refusé")
+
+    categorie = TYPES_PIECE_JOINTE_AUTORISES.get(fichier.content_type or "")
+    if not categorie:
+        raise HTTPException(
+            status_code=422,
+            detail="Type de fichier non autorisé — seuls les images (JPG, PNG, WEBP, GIF) et les PDF sont acceptés.",
+        )
+
+    data = await fichier.read()
+    if len(data) > TAILLE_MAX_PIECE_JOINTE:
+        raise HTTPException(status_code=413, detail="Fichier trop volumineux (10 Mo maximum).")
+
+    ext = os.path.splitext(fichier.filename or "")[1] or (".pdf" if categorie == "pdf" else ".jpg")
+    object_name = f"messages/{conversation_id}/{uuid.uuid4().hex}{ext}"
+    url = storage.upload_photo(object_name, data, fichier.content_type)
+
+    message = models.Message(
+        conversation_id=conversation_id,
+        expediteur_id=current_user.id,
+        contenu=(contenu or "").strip() or None,
+        piece_jointe_url=url,
+        piece_jointe_nom=fichier.filename,
+        piece_jointe_type=categorie,
+    )
+    db.add(message)
+    db.commit()
+    db.refresh(message)
+
+    await manager.broadcast(
+        conversation_id,
+        {
+            "type": "message",
+            "id": str(message.id),
+            "conversation_id": str(conversation_id),
+            "expediteur_id": str(current_user.id),
+            "contenu": message.contenu,
+            "date_envoi": message.date_envoi.isoformat(),
+            "lu": message.lu,
+            "piece_jointe_url": message.piece_jointe_url,
+            "piece_jointe_nom": message.piece_jointe_nom,
+            "piece_jointe_type": message.piece_jointe_type,
         },
     )
     return message

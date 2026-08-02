@@ -1,7 +1,7 @@
 // Client API centralisé pour consommer le back-end FastAPI (étape 4 du cahier des charges).
 // Le token JWT (étape 5 — Auth) est injecté automatiquement dans chaque requête.
 
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
+export const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 
 const TOKEN_KEY = "smartrent_token";
 

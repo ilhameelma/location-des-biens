@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas, storage
 from ..database import get_db
-from ..deps import get_current_user, require_role
+from ..deps import get_current_user, require_role, get_optional_user
 from ..kafka_producer import publish_event
 from ..kafka_topics import BIEN_CREE
 from .. import es_client
@@ -36,7 +36,12 @@ def search_biens(
     rayon_km: float | None = None,
     tri: str = "pertinence",
     db: Session = Depends(get_db),
-    user: models.Utilisateur = Depends(get_current_user),
+    # Endpoint réellement public (recherche + landing page) : la dépendance
+    # optionnelle ne rejette jamais la requête faute de token — corrige un bug
+    # où `get_current_user` (obligatoire) renvoyait 401 "Not authenticated"
+    # pour tout visiteur non connecté, alors que ce paramètre `user` n'est
+    # même pas utilisé plus bas dans la fonction.
+    user: models.Utilisateur | None = Depends(get_optional_user),
 ):
     """
     Recherche publique des biens (espace client) : ne renvoie que les biens

@@ -165,9 +165,19 @@ class Message(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
     conversation_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("conversation.id"))
     expediteur_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("utilisateur.id"))
-    contenu: Mapped[str] = mapped_column(Text)
+    # Optionnel désormais : un message peut être uniquement une pièce jointe
+    # (photo/PDF), sans texte d'accompagnement.
+    contenu: Mapped[str | None] = mapped_column(Text, nullable=True)
     lu: Mapped[bool] = mapped_column(Boolean, default=False)
     date_envoi: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Pièce jointe (photo ou PDF) — stockée dans MinIO comme les photos de
+    # biens (étape 7), sous la clé "messages/<conversation_id>/<uuid>.<ext>".
+    piece_jointe_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    piece_jointe_nom: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # "image" ou "pdf" — sert au front-end à décider comment afficher la pièce
+    # jointe (aperçu image vs carte fichier avec lien "Ouvrir").
+    piece_jointe_type: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     conversation: Mapped["Conversation"] = relationship(back_populates="messages")
 

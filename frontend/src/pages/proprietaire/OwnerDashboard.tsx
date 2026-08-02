@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from "react";
-import { Building2, Wallet, FileSignature, Plus, X, Upload } from "lucide-react";
+import { Building2, Wallet, FileSignature, Plus, X, Upload, Pencil, Trash2 } from "lucide-react";
 import StatCard from "../../components/ui/StatCard";
 import PropertyCard from "../../components/ui/PropertyCard";
 import EstimationWidget from "../../components/ia/EstimationWidget";
@@ -41,6 +41,24 @@ export default function OwnerDashboard() {
   const [editLat, setEditLat] = useState<number | null>(null);
   const [editLng, setEditLng] = useState<number | null>(null);
   const [savingLocation, setSavingLocation] = useState(false);
+
+  // --- Édition complète d'une annonce existante ---
+  const [editingBienId, setEditingBienId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({
+    titre: "",
+    description: "",
+    type_bien: "appartement" as TypeBien,
+    type_transaction: "location" as TypeTransaction,
+    ville: "",
+    adresse: "",
+    prix: "",
+    superficie: "",
+    nb_pieces: "",
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  // --- Suppression d'une annonce ---
+  const [deletingBienId, setDeletingBienId] = useState<string | null>(null);
 
   const fetchBiens = () => {
     setLoading(true);
@@ -163,6 +181,7 @@ export default function OwnerDashboard() {
   const loues = biens.filter((b) => b.statut === "loue").length;
 
   const openLocationEditor = (bien: Bien) => {
+    setEditingBienId(null); // les deux éditeurs ne s'affichent pas en même temps
     setEditingLocationFor(bien.id);
     setEditLat(bien.latitude ?? null);
     setEditLng(bien.longitude ?? null);
@@ -186,6 +205,69 @@ export default function OwnerDashboard() {
       setError(err instanceof Error ? err.message : "Impossible d'enregistrer la position");
     } finally {
       setSavingLocation(false);
+    }
+  };
+
+  // --- Édition complète d'une annonce ---
+  const openEdit = (bien: Bien) => {
+    setEditingLocationFor(null); // les deux éditeurs ne s'affichent pas en même temps
+    setEditingBienId(bien.id);
+    setEditForm({
+      titre: bien.titre,
+      description: bien.description ?? "",
+      type_bien: bien.type_bien,
+      type_transaction: bien.type_transaction,
+      ville: bien.ville,
+      adresse: bien.adresse,
+      prix: String(bien.prix),
+      superficie: bien.superficie != null ? String(bien.superficie) : "",
+      nb_pieces: bien.nb_pieces != null ? String(bien.nb_pieces) : "",
+    });
+  };
+
+  const cancelEdit = () => setEditingBienId(null);
+
+  const handleUpdate = async (e: React.FormEvent, bienId: string) => {
+    e.preventDefault();
+    setSavingEdit(true);
+    setError(null);
+    try {
+      await api.patch<Bien>(`/biens/${bienId}`, {
+        titre: editForm.titre,
+        description: editForm.description || null,
+        type_bien: editForm.type_bien,
+        type_transaction: editForm.type_transaction,
+        ville: editForm.ville,
+        adresse: editForm.adresse,
+        prix: Number(editForm.prix),
+        superficie: editForm.superficie ? Number(editForm.superficie) : null,
+        nb_pieces: editForm.nb_pieces ? Number(editForm.nb_pieces) : null,
+      });
+      setEditingBienId(null);
+      fetchBiens();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de modifier cette annonce");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  // --- Suppression d'une annonce ---
+  const handleDelete = async (bien: Bien) => {
+    const confirmed = window.confirm(
+      `Supprimer définitivement « ${bien.titre} » ? Cette action est irréversible : l'annonce et ses photos seront supprimées.`
+    );
+    if (!confirmed) return;
+
+    setDeletingBienId(bien.id);
+    setError(null);
+    try {
+      await api.del(`/biens/${bien.id}`);
+      fetchBiens();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de supprimer cette annonce");
+    } finally {
+      setDeletingBienId(null);
     }
   };
 
@@ -444,6 +526,164 @@ export default function OwnerDashboard() {
         {biens.map((b) => (
           <div key={b.id}>
             <PropertyCard bien={b} />
+
+            {editingBienId === b.id ? (
+              <form
+                onSubmit={(e) => handleUpdate(e, b.id)}
+                className="mt-2 grid grid-cols-1 gap-3 rounded-md border border-[var(--color-line)] bg-[var(--color-card)] p-4 sm:grid-cols-2"
+              >
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Titre</label>
+                  <input
+                    required
+                    value={editForm.titre}
+                    onChange={(e) => setEditForm({ ...editForm, titre: e.target.value })}
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Type</label>
+                  <select
+                    value={editForm.type_bien}
+                    onChange={(e) => setEditForm({ ...editForm, type_bien: e.target.value as TypeBien })}
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                  >
+                    {TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Transaction</label>
+                  <div className="flex overflow-hidden rounded-md border border-[var(--color-line)]">
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, type_transaction: "location" })}
+                      className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                        editForm.type_transaction === "location"
+                          ? "bg-[var(--color-brass)] text-white"
+                          : "text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)]"
+                      }`}
+                    >
+                      Louer
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditForm({ ...editForm, type_transaction: "vente" })}
+                      className={`flex-1 border-l border-[var(--color-line)] py-2 text-sm font-medium transition-colors ${
+                        editForm.type_transaction === "vente"
+                          ? "bg-[var(--color-brass)] text-white"
+                          : "text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)]"
+                      }`}
+                    >
+                      Vendre
+                    </button>
+                  </div>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Ville</label>
+                  <input
+                    required
+                    value={editForm.ville}
+                    onChange={(e) => setEditForm({ ...editForm, ville: e.target.value })}
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">
+                    Prix {editForm.type_transaction === "vente" ? "(MAD)" : "(MAD/mois)"}
+                  </label>
+                  <input
+                    required
+                    type="number"
+                    value={editForm.prix}
+                    onChange={(e) => setEditForm({ ...editForm, prix: e.target.value })}
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Adresse</label>
+                  <input
+                    required
+                    value={editForm.adresse}
+                    onChange={(e) => setEditForm({ ...editForm, adresse: e.target.value })}
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Superficie (m²)</label>
+                  <input
+                    type="number"
+                    value={editForm.superficie}
+                    onChange={(e) => setEditForm({ ...editForm, superficie: e.target.value })}
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Nb. pièces</label>
+                  <input
+                    type="number"
+                    value={editForm.nb_pieces}
+                    onChange={(e) => setEditForm({ ...editForm, nb_pieces: e.target.value })}
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                  />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">
+                    Description (optionnel)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                  />
+                </div>
+                <div className="flex gap-2 sm:col-span-2">
+                  <button
+                    type="submit"
+                    disabled={savingEdit}
+                    className="flex-1 rounded-md bg-[var(--color-brass)] py-2 text-sm font-medium text-white hover:bg-[var(--color-brass-deep)] disabled:opacity-60"
+                  >
+                    {savingEdit ? "Enregistrement…" : "Enregistrer les modifications"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={cancelEdit}
+                    className="rounded-md border border-[var(--color-line)] px-4 py-2 text-sm font-medium text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)]"
+                  >
+                    Annuler
+                  </button>
+                </div>
+                <p className="text-xs text-[var(--color-ink-3)] sm:col-span-2">
+                  Les photos ne sont pas modifiables ici pour le moment — supprime et
+                  republie l'annonce si tu dois changer les images.
+                </p>
+              </form>
+            ) : (
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => openEdit(b)}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--color-line)] py-1.5 text-xs font-medium text-[var(--color-ink-2)] hover:border-[var(--color-brass)] hover:text-[var(--color-brass-deep)]"
+                >
+                  <Pencil size={13} />
+                  Modifier
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(b)}
+                  disabled={deletingBienId === b.id}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-md border border-[var(--color-rust)]/40 py-1.5 text-xs font-medium text-[var(--color-rust)] hover:bg-[var(--color-rust-bg)] disabled:opacity-50"
+                >
+                  <Trash2 size={13} />
+                  {deletingBienId === b.id ? "Suppression…" : "Supprimer"}
+                </button>
+              </div>
+            )}
+
             {editingLocationFor === b.id ? (
               <div className="mt-2 rounded-md border border-[var(--color-line)] bg-[var(--color-card)] p-3">
                 <LocationPicker

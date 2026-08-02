@@ -87,10 +87,19 @@ class BienCreate(BaseModel):
 
 
 class BienUpdate(BaseModel):
+    """Tous les champs sont optionnels : seuls ceux envoyés par le front-end
+    sont modifiés (voir `payload.model_dump(exclude_unset=True)` dans le
+    router). Permet une édition complète de l'annonce par son propriétaire,
+    pas seulement le prix/statut/position."""
     titre: Optional[str] = None
     description: Optional[str] = None
-    prix: Optional[float] = None
+    type_bien: Optional[TypeBien] = None
     type_transaction: Optional[TypeTransaction] = None
+    adresse: Optional[str] = None
+    ville: Optional[str] = None
+    superficie: Optional[float] = None
+    prix: Optional[float] = None
+    nb_pieces: Optional[int] = None
     statut: Optional[StatutBien] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -253,9 +262,12 @@ class MessageOut(BaseModel):
     id: uuid.UUID
     conversation_id: uuid.UUID
     expediteur_id: uuid.UUID
-    contenu: str
+    contenu: Optional[str] = None
     date_envoi: datetime
     lu: bool
+    piece_jointe_url: Optional[str] = None
+    piece_jointe_nom: Optional[str] = None
+    piece_jointe_type: Optional[Literal["image", "pdf"]] = None
 
 
 class ConversationCreate(BaseModel):
