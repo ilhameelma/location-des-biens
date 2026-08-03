@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, Clock, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, Trash2, XCircle } from "lucide-react";
 import { api } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import type { Utilisateur } from "../../types";
 
 const ROLE_LABEL: Record<string, string> = {
@@ -10,10 +11,12 @@ const ROLE_LABEL: Record<string, string> = {
 };
 
 export default function UtilisateursPage() {
+  const { user: currentUser } = useAuth();
   const [utilisateurs, setUtilisateurs] = useState<Utilisateur[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
 
   const fetchUsers = () => {
     setLoading(true);
@@ -25,6 +28,24 @@ export default function UtilisateursPage() {
   };
 
   useEffect(fetchUsers, []);
+
+  const supprimer = async (u: Utilisateur) => {
+    const confirmed = window.confirm(
+      `Supprimer définitivement le compte de ${u.prenom} ${u.nom} (${u.email}) ?\n\n` +
+        `Toutes ses données associées (annonces, réservations, avis, messages...) seront également supprimées. Cette action est irréversible.`,
+    );
+    if (!confirmed) return;
+
+    setDeleting(u.id);
+    try {
+      await api.del(`/utilisateurs/${u.id}`);
+      setUtilisateurs((prev) => prev.filter((x) => x.id !== u.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de supprimer ce compte");
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   const verifier = async (id: string) => {
     setUpdating(id);
@@ -87,15 +108,28 @@ export default function UtilisateursPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {u.statut_verification === "en_attente" && (
-                      <button
-                        disabled={updating === u.id}
-                        onClick={() => verifier(u.id)}
-                        className="rounded-md bg-[var(--color-brass)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--color-brass-deep)] disabled:opacity-60"
-                      >
-                        Vérifier
-                      </button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {u.statut_verification === "en_attente" && (
+                        <button
+                          disabled={updating === u.id}
+                          onClick={() => verifier(u.id)}
+                          className="rounded-md bg-[var(--color-brass)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--color-brass-deep)] disabled:opacity-60"
+                        >
+                          Vérifier
+                        </button>
+                      )}
+                      {currentUser?.id !== u.id && (
+                        <button
+                          disabled={deleting === u.id}
+                          onClick={() => supprimer(u)}
+                          title="Supprimer ce compte"
+                          className="inline-flex items-center gap-1 rounded-md border border-[var(--color-rust)] px-3 py-1.5 text-xs font-medium text-[var(--color-rust)] hover:bg-[var(--color-rust-bg)] disabled:opacity-60"
+                        >
+                          <Trash2 size={13} />
+                          {deleting === u.id ? "Suppression…" : "Supprimer"}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -49,6 +49,34 @@ export interface Bien {
   latitude?: number | null;
   longitude?: number | null;
   photos: PhotoBien[];
+  proprietaire_nom?: string | null;
+  proprietaire_prenom?: string | null;
+}
+
+// Fiche profil publique d'un propriétaire (GET /utilisateurs/{id}/profil-public)
+export interface ProprietairePublic {
+  id: string;
+  nom: string;
+  prenom: string;
+  date_creation: string;
+  nb_biens_actifs: number;
+  note_moyenne: number | null;
+  nb_avis: number;
+}
+
+// Complément étape 17 — points d'intérêt à proximité (Overpass/OSM)
+export type CategoriePoi = "hotel" | "jardin" | "ecole" | "commerce";
+
+export interface Poi {
+  nom: string;
+  distance_km: number;
+  lat: number;
+  lon: number;
+}
+
+export interface ProximiteBien {
+  disponible: boolean;
+  categories: Partial<Record<CategoriePoi, Poi[]>>;
 }
 
 export type StatutReservation = "en_attente" | "confirmee" | "refusee" | "annulee";
@@ -115,12 +143,43 @@ export interface Reclamation {
   statut: StatutReclamation;
   date_creation: string;
   bien_titre?: string | null;
+  client_nom?: string | null;
+  client_prenom?: string | null;
+  client_email?: string | null;
+  client_telephone?: string | null;
+  proprietaire_id?: string | null;
+  proprietaire_nom?: string | null;
+  proprietaire_prenom?: string | null;
+  proprietaire_email?: string | null;
+  proprietaire_telephone?: string | null;
+  // Nombre total de réclamations reçues par l'annonce concernée (bien_id),
+  // toutes réclamations confondues. null/undefined si bien_id est absent.
+  bien_reclamations_count?: number | null;
 }
 
 export interface Favori {
   id: string;
   bien_id: string;
   date_creation: string;
+}
+
+// Historique de recherche (page de recherche client)
+export interface CriteresRecherche {
+  type_transaction: TypeTransaction;
+  ville?: string;
+  type_bien?: TypeBien | "tous";
+  q?: string;
+  prix_min?: string;
+  prix_max?: string;
+  superficie_min?: string;
+  tri?: "pertinence" | "prix_asc" | "prix_desc" | "recent";
+}
+
+export interface RechercheHistorique {
+  id: string;
+  label: string;
+  criteres: CriteresRecherche;
+  date_recherche: string;
 }
 
 export interface Conversation {

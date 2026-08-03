@@ -214,5 +214,19 @@ CREATE TABLE notification (
 CREATE INDEX idx_notification_utilisateur ON notification(utilisateur_id);
 
 -- ============================================================
+-- Table : recherche_historique (historique de recherche du client)
+-- ============================================================
+CREATE TABLE recherche_historique (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id           UUID NOT NULL REFERENCES utilisateur(id) ON DELETE CASCADE,
+    label               VARCHAR(255) NOT NULL,
+    criteres            JSONB NOT NULL,
+    date_recherche      TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_recherche_historique_client ON recherche_historique(client_id);
+CREATE INDEX idx_recherche_historique_client_date ON recherche_historique(client_id, date_recherche DESC);
+
+-- ============================================================
 -- Fin du script
 -- ============================================================

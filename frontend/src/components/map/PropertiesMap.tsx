@@ -36,6 +36,38 @@ const TYPE_LABELS: Record<string, string> = {
   villa: "Villa",
 };
 
+// Format compact pour tenir dans une bulle ("2,4M DH", "850k DH", "3.500 DH"),
+// même logique visuelle que les puces de prix Google Maps / Booking.
+function formatPrixPin(prix: number): string {
+  if (prix >= 1_000_000) {
+    const millions = prix / 1_000_000;
+    return `${Number.isInteger(millions) ? millions.toFixed(0) : millions.toFixed(1)}M`;
+  }
+  if (prix >= 10_000) {
+    const milliers = prix / 1_000;
+    return `${Number.isInteger(milliers) ? milliers.toFixed(0) : milliers.toFixed(1)}k`;
+  }
+  return prix.toLocaleString("fr-MA");
+}
+
+// Icône "bulle de prix" : le div externe (className) est positionné par
+// Leaflet exactement au point GPS (iconSize/iconAnchor à [0,0]) sans aucune
+// taille propre ; la bulle réellement visible est le <span> interne, centré
+// sur ce point via `transform: translate(-50%, -50%)` en CSS (voir
+// index.css, classes .smartrent-pin-anchor / .smartrent-pin). Cette
+// technique permet une bulle de largeur variable (prix courts vs longs)
+// tout en restant parfaitement centrée sur les coordonnées du bien.
+function buildPriceIcon(bien: Bien): L.DivIcon {
+  const label = `${formatPrixPin(bien.prix)} DH`;
+  return L.divIcon({
+    className: "smartrent-pin-anchor",
+    html: `<span class="smartrent-pin">${label}</span>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    popupAnchor: [0, -20],
+  });
+}
+
 // Recentre la carte automatiquement quand la liste de biens filtrés change.
 function FitBounds({ biens }: { biens: Bien[] }) {
   const map = useMap();
@@ -93,7 +125,11 @@ export default function PropertiesMap({
             : null;
 
           return (
-            <Marker key={bien.id} position={[bien.latitude as number, bien.longitude as number]}>
+            <Marker
+              key={bien.id}
+              position={[bien.latitude as number, bien.longitude as number]}
+              icon={buildPriceIcon(bien)}
+            >
               <Popup minWidth={220}>
                 <div className="space-y-1.5">
                   {photoUrl && (

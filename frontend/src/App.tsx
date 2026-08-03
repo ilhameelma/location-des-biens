@@ -24,6 +24,7 @@ import AnnoncesPage from "./pages/admin/AnnoncesPage";
 import ReclamationsPage from "./pages/admin/ReclamationsPage";
 
 import BienDetailPage from "./pages/BienDetailPage";
+import ProprietairePublicPage from "./pages/ProprietairePublicPage";
 import ComptePage from "./pages/ComptePage";
 
 export default function App() {
@@ -53,6 +54,9 @@ export default function App() {
 
           {/* Fiche détaillée d'une annonce — accessible aux 3 rôles (client, propriétaire, admin) */}
           <Route path="/biens/:id" element={<ProtectedRoute><BienDetailPage /></ProtectedRoute>} />
+
+          {/* Fiche profil publique d'un propriétaire (ses annonces + note moyenne) — accessible aux 3 rôles */}
+          <Route path="/proprietaires/:id" element={<ProtectedRoute><ProprietairePublicPage /></ProtectedRoute>} />
 
           {/* Mon compte — accessible aux 3 rôles (client, propriétaire, admin) */}
           <Route path="/compte" element={<ProtectedRoute><ComptePage /></ProtectedRoute>} />

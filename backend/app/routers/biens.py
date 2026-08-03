@@ -1,19 +1,23 @@
 """Router FastAPI pour la gestion des biens immobiliers (propriétaire)."""
-import os
+import logging
 import uuid
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session, joinedload
 
-from .. import models, schemas, storage
+from .. import models, schemas, storage, watermark
 from ..database import get_db
 from ..deps import get_current_user, require_role, get_optional_user
 from ..kafka_producer import publish_event
 from ..kafka_topics import BIEN_CREE
 from .. import es_client
+from .. import poi_client
+from ..config import settings
 
 router = APIRouter(prefix="/biens", tags=["biens"])
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -75,7 +79,7 @@ def search_biens(
             return []
         rows = (
             db.query(models.Bien)
-            .options(joinedload(models.Bien.photos))
+            .options(joinedload(models.Bien.photos), joinedload(models.Bien.proprietaire))
             .filter(models.Bien.id.in_(ids))
             .all()
         )
@@ -88,7 +92,7 @@ def search_biens(
 
     query = (
         db.query(models.Bien)
-        .options(joinedload(models.Bien.photos))
+        .options(joinedload(models.Bien.photos), joinedload(models.Bien.proprietaire))
         .filter(models.Bien.statut == "disponible")
     )
     if ville:
@@ -133,11 +137,49 @@ def list_my_biens(
     type_transaction (location|vente)."""
     query = (
         db.query(models.Bien)
-        .options(joinedload(models.Bien.photos))
+        .options(joinedload(models.Bien.photos), joinedload(models.Bien.proprietaire))
         .filter(models.Bien.proprietaire_id == user.id)
     )
     if type_transaction:
         query = query.filter(models.Bien.type_transaction == type_transaction)
+    return query.order_by(models.Bien.date_publication.desc()).all()
+
+
+@router.get("/proprietaire/{proprietaire_id}", response_model=List[schemas.BienOut])
+def list_biens_by_proprietaire(
+    proprietaire_id: uuid.UUID,
+    type_transaction: str | None = None,
+    db: Session = Depends(get_db),
+    # Consultation publique (fiche profil d'un propriétaire, lien "Voir
+    # toutes ses annonces" depuis une fiche bien) : pas de connexion requise.
+    user: models.Utilisateur | None = Depends(get_optional_user),
+):
+    """
+    Liste les biens d'un propriétaire donné.
+
+    Même règle de visibilité que la recherche publique (`GET /biens`) : un
+    visiteur, un client ou un autre propriétaire ne voient que les biens au
+    statut "disponible". Le propriétaire consultant sa propre liste (ou un
+    admin) voient en plus ses annonces en_attente/loué/vendu/suspendu.
+    """
+    proprietaire = db.get(models.Utilisateur, proprietaire_id)
+    if not proprietaire or proprietaire.role != "proprietaire":
+        raise HTTPException(status_code=404, detail="Propriétaire introuvable")
+
+    query = (
+        db.query(models.Bien)
+        .options(joinedload(models.Bien.photos), joinedload(models.Bien.proprietaire))
+        .filter(models.Bien.proprietaire_id == proprietaire_id)
+    )
+
+    est_proprietaire_ou_admin = user is not None and (
+        user.id == proprietaire_id or user.role == "admin"
+    )
+    if not est_proprietaire_ou_admin:
+        query = query.filter(models.Bien.statut == "disponible")
+    if type_transaction:
+        query = query.filter(models.Bien.type_transaction == type_transaction)
+
     return query.order_by(models.Bien.date_publication.desc()).all()
 
 
@@ -148,10 +190,41 @@ def get_bien(
     user: models.Utilisateur = Depends(get_current_user),
 ):
     """Récupère un bien par son ID."""
-    bien = db.get(models.Bien, bien_id)
+    bien = (
+        db.query(models.Bien)
+        .options(joinedload(models.Bien.photos), joinedload(models.Bien.proprietaire))
+        .filter(models.Bien.id == bien_id)
+        .first()
+    )
     if not bien:
         raise HTTPException(status_code=404, detail="Bien non trouvé")
     return bien
+
+
+@router.get("/{bien_id}/proximite", response_model=schemas.ProximiteOut)
+def get_proximite_bien(
+    bien_id: uuid.UUID,
+    rayon_km: float = settings.poi_rayon_km_defaut,
+    db: Session = Depends(get_db),
+    user: models.Utilisateur = Depends(get_current_user),
+):
+    """
+    Points d'intérêt à proximité du bien (hôtels, jardins/parcs, écoles,
+    centres commerciaux), calculés à la volée depuis ses coordonnées GPS
+    via l'API Overpass (OpenStreetMap) — voir app/poi_client.py.
+
+    Best-effort : si Overpass est indisponible ou lent, renvoie
+    `disponible: false` avec des catégories vides plutôt qu'une erreur —
+    la fiche du bien reste consultable normalement.
+    """
+    bien = db.get(models.Bien, bien_id)
+    if not bien:
+        raise HTTPException(status_code=404, detail="Bien non trouvé")
+    if bien.latitude is None or bien.longitude is None:
+        return schemas.ProximiteOut(disponible=False, categories={})
+
+    rayon = max(0.2, min(rayon_km, 5.0))  # borne raisonnable : 200 m à 5 km
+    return poi_client.get_proximite(bien.latitude, bien.longitude, rayon)
 
 
 @router.post("", response_model=schemas.BienOut, status_code=status.HTTP_201_CREATED)
@@ -220,11 +293,19 @@ def update_bien(
 def delete_bien(
     bien_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: models.Utilisateur = Depends(require_role("proprietaire")),
+    user: models.Utilisateur = Depends(require_role("proprietaire", "admin")),
 ):
-    """Supprime un bien et ses photos."""
+    """Supprime un bien et ses photos.
+
+    Un propriétaire ne peut supprimer que ses propres annonces. Un admin peut
+    supprimer n'importe quelle annonce (ex. suite à l'alerte automatique
+    déclenchée quand une annonce dépasse SEUIL_RECLAMATIONS_ANNONCE
+    réclamations, voir routers/reclamations.py).
+    """
     bien = db.get(models.Bien, bien_id)
-    if not bien or bien.proprietaire_id != user.id:
+    if not bien:
+        raise HTTPException(status_code=404, detail="Bien non trouvé")
+    if user.role != "admin" and bien.proprietaire_id != user.id:
         raise HTTPException(status_code=404, detail="Bien non trouvé")
 
     # Supprimer les fichiers physiques dans MinIO
@@ -267,11 +348,24 @@ async def upload_photos(
     saved_photos = []
 
     for idx, photo in enumerate(photos):
-        ext = os.path.splitext(photo.filename or "")[1] or ".jpg"
+        content = await photo.read()
+        content_type = photo.content_type
+
+        # Filigrane "ImmoVision.ma" incrusté dans le fichier avant stockage
+        # (comme Avito) — best-effort : si l'image est illisible/corrompue
+        # ou si le filigrane est désactivé, on stocke l'original tel quel
+        # plutôt que de faire échouer tout l'upload.
+        try:
+            content, content_type = watermark.apply_watermark(content)
+        except watermark.WatermarkDisabled:
+            pass
+        except Exception as exc:
+            logger.warning("Filigrane impossible pour '%s' : %s", photo.filename, exc)
+
+        ext = ".png" if content_type == "image/png" else ".jpg"
         object_name = f"biens/{bien_id}/{uuid.uuid4().hex}{ext}"
 
-        content = await photo.read()
-        photo_url = storage.upload_photo(object_name, content, photo.content_type)
+        photo_url = storage.upload_photo(object_name, content, content_type)
 
         ordre = int(ordres[idx]) if idx < len(ordres) else idx
         db_photo = models.PhotoBien(

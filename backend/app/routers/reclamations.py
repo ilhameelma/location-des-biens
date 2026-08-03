@@ -1,6 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
@@ -9,6 +10,11 @@ from ..deps import get_current_user, require_role
 from ..notifications_service import notify
 
 router = APIRouter(prefix="/reclamations", tags=["reclamations"])
+
+# Au-delà de ce nombre de réclamations reçues (toutes confondues) sur une
+# même annonce, les admins reçoivent une alerte dédiée les invitant à
+# vérifier l'annonce et, le cas échéant, à la supprimer.
+SEUIL_RECLAMATIONS_ANNONCE = 20
 
 # Libellés lisibles pour le contenu des notifications — mêmes valeurs que
 # TYPE_OPTIONS côté front-end (frontend/src/pages/client/ReclamationsPage.tsx).
@@ -49,6 +55,19 @@ def _enrich(db: Session, reclamations: list[models.Reclamation]) -> list[schemas
         else {}
     )
 
+    # Nombre total de réclamations par annonce — calculé en une seule requête
+    # groupée (pas de N+1), utilisé côté admin pour repérer les annonces à
+    # risque (cf. SEUIL_RECLAMATIONS_ANNONCE).
+    counts_par_bien: dict[uuid.UUID, int] = {}
+    if bien_ids:
+        rows = (
+            db.query(models.Reclamation.bien_id, func.count(models.Reclamation.id))
+            .filter(models.Reclamation.bien_id.in_(bien_ids))
+            .group_by(models.Reclamation.bien_id)
+            .all()
+        )
+        counts_par_bien = {bien_id: count for bien_id, count in rows}
+
     result = []
     for r in reclamations:
         bien = biens.get(r.bien_id) if r.bien_id else None
@@ -74,6 +93,7 @@ def _enrich(db: Session, reclamations: list[models.Reclamation]) -> list[schemas
                 proprietaire_prenom=proprietaire.prenom if proprietaire else None,
                 proprietaire_email=proprietaire.email if proprietaire else None,
                 proprietaire_telephone=proprietaire.telephone if proprietaire else None,
+                bien_reclamations_count=counts_par_bien.get(r.bien_id) if r.bien_id else None,
             )
         )
     return result
@@ -138,6 +158,26 @@ def create_reclamation(
             email_subject="SmartRent — Réclamation d'un client vous concernant",
             force_email=True,
         )
+
+    # Alerte dédiée aux admins si cette annonce vient de dépasser le seuil de
+    # réclamations (déclenchée une seule fois, au moment précis où le seuil
+    # est franchi, pour ne pas spammer les admins à chaque réclamation
+    # suivante sur la même annonce).
+    if enriched.bien_reclamations_count == SEUIL_RECLAMATIONS_ANNONCE + 1:
+        alerte = (
+            f"🚨 L'annonce « {enriched.bien_titre or 'sans titre'} » a dépassé "
+            f"{SEUIL_RECLAMATIONS_ANNONCE} réclamations ({enriched.bien_reclamations_count} au total). "
+            "Une vérification manuelle est recommandée — envisagez de suspendre ou de supprimer cette annonce."
+        )
+        for admin in admins:
+            notify(
+                db,
+                admin.id,
+                "alerte_annonce",
+                alerte,
+                email_subject="SmartRent — Annonce à risque : seuil de réclamations dépassé",
+                force_email=True,
+            )
 
     return enriched
 

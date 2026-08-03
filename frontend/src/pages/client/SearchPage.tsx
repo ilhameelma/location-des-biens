@@ -1,11 +1,20 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Search, Sparkles, LayoutGrid, Map as MapIcon, SlidersHorizontal } from "lucide-react";
 import PropertyCard from "../../components/ui/PropertyCard";
 import SimilarPropertiesPanel from "../../components/ia/SimilarPropertiesPanel";
 import PropertiesMap from "../../components/map/PropertiesMap";
+import SearchHistoryPanel from "../../components/search/SearchHistoryPanel";
+import { useSearchHistory } from "../../lib/useSearchHistory";
 import { api } from "../../lib/api";
-import type { Bien, Conversation, RecommandationResponse, TypeBien, TypeTransaction } from "../../types";
+import type {
+  Bien,
+  Conversation,
+  CriteresRecherche,
+  RecommandationResponse,
+  TypeBien,
+  TypeTransaction,
+} from "../../types";
 
 const TYPES: { value: TypeBien | "tous"; label: string }[] = [
   { value: "tous", label: "Tous types" },
@@ -43,6 +52,14 @@ export default function SearchPage() {
 
   const [view, setView] = useState<"liste" | "carte">("liste");
 
+  // Historique de recherche : le hook gère le chargement/l'enregistrement/la
+  // suppression ; on l'utilise ici uniquement pour `enregistrer` (le panneau
+  // déroulant, lui, recharge sa propre copie de la liste).
+  const { enregistrer } = useSearchHistory();
+  // Évite de ré-enregistrer immédiatement une entrée qu'on vient d'appliquer
+  // depuis l'historique (la recherche resterait identique à celle cliquée).
+  const skipProchainEnregistrement = useRef(false);
+
   // Étape 18 — Recherche avancée : le texte libre part vers Elasticsearch
   // (titre/ville/adresse/description) ; on le débounce pour ne pas envoyer
   // une requête à chaque frappe.
@@ -72,6 +89,71 @@ export default function SearchPage() {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(fetchBiens, [transactionType, ville, type, debouncedQ, prixMin, prixMax, superficieMin, tri]);
+
+  // Construit un libellé lisible ("Location · Casablanca · Appartement ·
+  // 3 000–6 000 MAD") à partir des filtres actifs, affiché dans le panneau
+  // d'historique.
+  const buildLabel = (): string => {
+    const parts: string[] = [transactionType === "vente" ? "Achat" : "Location"];
+    if (ville) parts.push(ville);
+    if (type !== "tous") {
+      const found = TYPES.find((t) => t.value === type);
+      if (found) parts.push(found.label);
+    }
+    if (debouncedQ) parts.push(`« ${debouncedQ} »`);
+    if (prixMin || prixMax) parts.push(`${prixMin || "0"}–${prixMax || "∞"} MAD`);
+    if (superficieMin) parts.push(`≥ ${superficieMin} m²`);
+    return parts.join(" · ");
+  };
+
+  // Enregistre la recherche dans l'historique ~1,2 s après la dernière
+  // modification de filtre (le temps que l'utilisateur "se stabilise" sur
+  // des critères), et seulement si au moins un filtre autre que le type de
+  // transaction est actif — inutile de garder "parcourir toutes les
+  // annonces" dans l'historique.
+  useEffect(() => {
+    if (skipProchainEnregistrement.current) {
+      skipProchainEnregistrement.current = false;
+      return;
+    }
+    const aDesFiltresSignificatifs = Boolean(
+      ville || type !== "tous" || debouncedQ || prixMin || prixMax || superficieMin
+    );
+    if (!aDesFiltresSignificatifs) return;
+
+    const t = setTimeout(() => {
+      const criteres: CriteresRecherche = {
+        type_transaction: transactionType,
+        ville: ville || undefined,
+        type_bien: type,
+        q: debouncedQ || undefined,
+        prix_min: prixMin || undefined,
+        prix_max: prixMax || undefined,
+        superficie_min: superficieMin || undefined,
+        tri,
+      };
+      enregistrer(buildLabel(), criteres);
+    }, 1200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [transactionType, ville, type, debouncedQ, prixMin, prixMax, superficieMin]);
+
+  const handleApplyHistorique = (criteres: CriteresRecherche) => {
+    skipProchainEnregistrement.current = true;
+    setTransactionType(criteres.type_transaction);
+    setVille(criteres.ville ?? "");
+    setType(criteres.type_bien ?? "tous");
+    setQ(criteres.q ?? "");
+    setDebouncedQ(criteres.q ?? "");
+    setPrixMin(criteres.prix_min ?? "");
+    setPrixMax(criteres.prix_max ?? "");
+    setSuperficieMin(criteres.superficie_min ?? "");
+    setTri(criteres.tri ?? "pertinence");
+    if (criteres.prix_min || criteres.prix_max || criteres.superficie_min) {
+      setShowAdvanced(true);
+    }
+  };
+
 
   const handleReserve = async (bien: Bien) => {
     const dateDebut = window.prompt(
@@ -223,6 +305,7 @@ export default function SearchPage() {
             <SlidersHorizontal size={13} />
             Filtres avancés
           </button>
+          <SearchHistoryPanel onApply={handleApplyHistorique} />
 
           <div className="ml-auto flex items-center gap-3">
             <span className="font-mono text-xs text-[var(--color-ink-3)]">

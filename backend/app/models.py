@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, date
 
 from sqlalchemy import String, Numeric, Boolean, ForeignKey, DateTime, Date, Text, Integer, SmallInteger, Double, UniqueConstraint
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
@@ -52,6 +52,18 @@ class Bien(Base):
 
     proprietaire: Mapped["Utilisateur"] = relationship(back_populates="biens")
     photos: Mapped[list["PhotoBien"]] = relationship(back_populates="bien", cascade="all, delete-orphan")
+
+    # Champs pratiques exposés dans BienOut (fiche bien, résultats de
+    # recherche) pour afficher "Publié par X" sans requête supplémentaire
+    # côté front-end — nécessitent que la relation `proprietaire` soit
+    # chargée (voir joinedload(Bien.proprietaire) dans routers/biens.py).
+    @property
+    def proprietaire_nom(self) -> str | None:
+        return self.proprietaire.nom if self.proprietaire else None
+
+    @property
+    def proprietaire_prenom(self) -> str | None:
+        return self.proprietaire.prenom if self.proprietaire else None
 
 
 class PhotoBien(Base):
@@ -145,6 +157,20 @@ class Favori(Base):
     utilisateur_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("utilisateur.id", ondelete="CASCADE"))
     bien_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("bien.id", ondelete="CASCADE"))
     date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class RechercheHistorique(Base):
+    """Historique des recherches effectuées par un client sur la page de
+    recherche (critères + libellé lisible), pour lui permettre de relancer
+    une recherche récente en un clic."""
+
+    __tablename__ = "recherche_historique"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
+    client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("utilisateur.id", ondelete="CASCADE"))
+    label: Mapped[str] = mapped_column(String(255))
+    criteres: Mapped[dict] = mapped_column(JSONB)
+    date_recherche: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class Conversation(Base):

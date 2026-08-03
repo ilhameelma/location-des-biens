@@ -2,7 +2,7 @@
 // Cloche de notification temps réel : badge de compteur, menu déroulant
 // avec l'historique, clic pour marquer comme lu, "tout marquer comme lu".
 import { useEffect, useRef, useState } from "react";
-import { Bell, CalendarClock, Wallet, MessageSquare, CheckCheck, AlertTriangle } from "lucide-react";
+import { Bell, CalendarClock, Wallet, MessageSquare, CheckCheck, AlertTriangle, ShieldAlert } from "lucide-react";
 import { useNotifications } from "../../lib/useNotifications";
 import type { Notification } from "../../types";
 
@@ -11,11 +11,13 @@ const ICONS: Record<string, typeof Bell> = {
   paiement: Wallet,
   message: MessageSquare,
   avertissement: AlertTriangle,
+  alerte_annonce: ShieldAlert,
 };
 
 // Types "sensibles" affichés avec un badge d'avertissement (fond/texte rouille)
-// plutôt que le style brass neutre — ex. réclamation reçue par un propriétaire.
-const WARNING_TYPES = new Set(["avertissement"]);
+// plutôt que le style brass neutre — ex. réclamation reçue par un propriétaire,
+// ou annonce ayant dépassé le seuil de réclamations (admin).
+const WARNING_TYPES = new Set(["avertissement", "alerte_annonce"]);
 
 function formatRelatif(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime();

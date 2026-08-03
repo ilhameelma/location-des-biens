@@ -79,6 +79,35 @@ class Settings(BaseSettings):
     elasticsearch_url: str = "http://localhost:9200"
     elasticsearch_index: str = "smartrent_biens"
 
+    # ============================================================
+    # Complément étape 17 — Points d'intérêt à proximité (Overpass/OSM)
+    # ============================================================
+    # Instances publiques Overpass, gratuites et sans clé — même écosystème
+    # OpenStreetMap que Leaflet (carte) et Nominatim (LocationPicker),
+    # déjà utilisés à l'étape 17.
+    #
+    # Plusieurs miroirs sont essayés dans l'ordre : l'instance historique
+    # overpass-api.de renvoie régulièrement des erreurs 406 Not Acceptable
+    # depuis qu'elle filtre le trafic jugé "automatisé" (mesure anti-scraping
+    # côté serveur, problème documenté côté communauté OSM — rien à corriger
+    # côté requête). overpass.kumi.systems est utilisé en premier car il
+    # règle la grande majorité de ces cas ; overpass-api.de et
+    # overpass.private.coffee restent en repli.
+    overpass_urls: list[str] = [
+        "https://overpass.kumi.systems/api/interpreter",
+        "https://overpass-api.de/api/interpreter",
+        "https://overpass.private.coffee/api/interpreter",
+    ]
+    overpass_timeout_seconds: float = 15.0
+    poi_rayon_km_defaut: float = 1.5
+
+    # ============================================================
+    # Filigrane sur les photos de biens (protection contre la réutilisation
+    # des photos sur d'autres plateformes, comme le fait Avito)
+    # ============================================================
+    watermark_enabled: bool = True
+    watermark_text: str = "ImmoVision.ma"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

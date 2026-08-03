@@ -90,4 +90,41 @@
     background: var(--color-line);
     border-radius: 4px;
   }
+
+  /* ---------- Marqueurs "bulle de prix" sur la carte (PropertiesMap) ---------- */
+  /* Le div externe (positionné par Leaflet au point GPS exact, taille 0x0 —
+     voir iconSize/iconAnchor dans PropertiesMap.tsx) ne doit porter aucun
+     style visuel : seule la bulle interne, centrée via transform, est visible. */
+  .smartrent-pin-anchor {
+    background: transparent !important;
+    border: none !important;
+  }
+  .smartrent-pin {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -50%);
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    padding: 5px 11px;
+    border-radius: 9999px;
+    background: var(--color-card);
+    border: 1.5px solid var(--color-brass);
+    color: var(--color-ink);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1.2;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+  }
+  .smartrent-pin:hover {
+    background: var(--color-ink);
+    border-color: var(--color-ink);
+    color: #ffffff;
+    transform: translate(-50%, -50%) scale(1.08);
+    z-index: 1000 !important;
+  }
 }

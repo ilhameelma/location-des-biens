@@ -122,6 +122,36 @@ class BienOut(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     photos: list[PhotoBienOut] = []
+    # Pratique pour l'affichage ("Publié par ...") sans requête supplémentaire.
+    proprietaire_nom: Optional[str] = None
+    proprietaire_prenom: Optional[str] = None
+
+
+# ---------- Fiche profil publique d'un propriétaire ----------
+class ProprietairePublicOut(BaseModel):
+    """Consultable par tout visiteur (ex. lien "Voir le profil" depuis une
+    fiche bien) — expose uniquement des informations non sensibles (pas
+    d'email, pas de téléphone)."""
+    id: uuid.UUID
+    nom: str
+    prenom: str
+    date_creation: datetime
+    nb_biens_actifs: int
+    note_moyenne: Optional[float] = None
+    nb_avis: int
+
+
+# ---------- Proximité (complément étape 17 — points d'intérêt OSM/Overpass) ----------
+class PoiOut(BaseModel):
+    nom: str
+    distance_km: float
+    lat: float
+    lon: float
+
+
+class ProximiteOut(BaseModel):
+    disponible: bool
+    categories: dict[str, list[PoiOut]]
 
 
 # ---------- Reservation ----------
@@ -234,6 +264,11 @@ class ReclamationOut(BaseModel):
     proprietaire_prenom: Optional[str] = None
     proprietaire_email: Optional[str] = None
     proprietaire_telephone: Optional[str] = None
+    # Nombre total de réclamations reçues par l'annonce concernée (toutes
+    # réclamations confondues, tous statuts) — utilisé côté admin pour
+    # repérer les annonces à risque. None si la réclamation n'est pas liée
+    # à un bien.
+    bien_reclamations_count: Optional[int] = None
 
 
 class ReclamationStatutUpdate(BaseModel):
@@ -250,6 +285,20 @@ class FavoriOut(BaseModel):
     id: uuid.UUID
     bien_id: uuid.UUID
     date_creation: datetime
+
+
+# ---------- Historique de recherche ----------
+class RechercheCreate(BaseModel):
+    label: str
+    criteres: dict
+
+
+class RechercheOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    label: str
+    criteres: dict
+    date_recherche: datetime
 
 
 # ---------- Messagerie ----------

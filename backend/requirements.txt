@@ -14,3 +14,4 @@ minio==7.2.15
 kafka-python-ng==2.2.3
 httpx==0.28.1
 elasticsearch==8.15.1
+Pillow>=10.1.0

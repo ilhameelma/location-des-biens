@@ -14,6 +14,7 @@ import {
 import ImageCarousel, { resolvePhotoUrl } from "../components/ui/ImageCarousel";
 import StatusBadge from "../components/ui/StatusBadge";
 import PropertiesMap from "../components/map/PropertiesMap";
+import NearbyPlaces from "../components/map/NearbyPlaces";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { emitFavorisChanged } from "../lib/favorisEvents";
@@ -212,7 +213,10 @@ export default function BienDetailPage() {
               {bien.adresse}, {bien.ville}
             </p>
             {bien.latitude != null && bien.longitude != null ? (
-              <PropertiesMap biens={[bien]} />
+              <>
+                <PropertiesMap biens={[bien]} />
+                <NearbyPlaces bienId={bien.id} />
+              </>
             ) : (
               <p className="rounded-md bg-[var(--color-paper-2)] px-4 py-3 text-xs text-[var(--color-ink-3)]">
                 Ce bien n'a pas encore été géolocalisé par le propriétaire.
@@ -278,6 +282,26 @@ export default function BienDetailPage() {
               </span>
               {!isVente && <span className="ml-1 text-sm text-[var(--color-ink-3)]">/ mois</span>}
             </div>
+
+            {/* Publié par — lien vers la fiche profil publique du propriétaire
+                (ses autres annonces + note moyenne), masqué si le visiteur
+                est le propriétaire lui-même (il a déjà "Gérer cette annonce"). */}
+            {!(user?.role === "proprietaire" && bien.proprietaire_id === user.id) && (
+              <Link
+                to={`/proprietaires/${bien.proprietaire_id}`}
+                className="mt-4 flex items-center justify-between gap-2 rounded-md border border-[var(--color-line)] px-3 py-2.5 text-sm transition-colors hover:border-[var(--color-brass)]"
+              >
+                <span className="text-[var(--color-ink-3)]">
+                  Publié par{" "}
+                  <span className="font-medium text-[var(--color-ink)]">
+                    {bien.proprietaire_prenom ?? "ce"} {bien.proprietaire_nom ?? "propriétaire"}
+                  </span>
+                </span>
+                <span className="whitespace-nowrap text-xs font-medium text-[var(--color-brass-deep)]">
+                  Voir ses annonces
+                </span>
+              </Link>
+            )}
 
             {user?.role === "client" && (
               <div className="mt-5 flex flex-col gap-2">

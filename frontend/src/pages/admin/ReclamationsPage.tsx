@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
-import { User, Home, Mail, Phone, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { User, Home, Mail, Phone, CheckCircle2, XCircle, Clock, Trash2, TriangleAlert } from "lucide-react";
 import { api } from "../../lib/api";
 import type { Reclamation, StatutReclamation } from "../../types";
 import StatusBadge from "../../components/ui/StatusBadge";
+
+// Doit rester synchronisé avec SEUIL_RECLAMATIONS_ANNONCE côté back-end
+// (backend/app/routers/reclamations.py) — uniquement pour l'affichage
+// (surlignage du badge), le vrai seuil qui déclenche l'alerte est appliqué
+// côté serveur.
+const SEUIL_RECLAMATIONS_ANNONCE = 20;
 
 const TYPE_LABELS: Record<string, string> = {
   annonce_trompeuse: "Annonce trompeuse",
@@ -31,6 +37,7 @@ export default function ReclamationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updating, setUpdating] = useState<string | null>(null);
+  const [deletingBien, setDeletingBien] = useState<string | null>(null);
 
   const fetchAll = () => {
     setLoading(true);
@@ -53,6 +60,25 @@ export default function ReclamationsPage() {
       setError(err instanceof Error ? err.message : "Impossible de mettre à jour");
     } finally {
       setUpdating(null);
+    }
+  };
+
+  const supprimerAnnonce = async (bienId: string, titre: string | null | undefined) => {
+    const confirmed = window.confirm(
+      `Supprimer définitivement l'annonce « ${titre ?? bienId} » ?\n\n` +
+        `Cette action est irréversible (photos et réservations liées supprimées aussi).`,
+    );
+    if (!confirmed) return;
+
+    setDeletingBien(bienId);
+    setError(null);
+    try {
+      await api.del(`/biens/${bienId}`);
+      fetchAll();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Impossible de supprimer cette annonce");
+    } finally {
+      setDeletingBien(null);
     }
   };
 
@@ -137,12 +163,42 @@ export default function ReclamationsPage() {
                 </div>
               </div>
 
-              {/* Annonce exacte concernée */}
+              {/* Annonce exacte concernée + compteur de réclamations sur cette annonce */}
               {r.bien_titre && (
-                <p className="mt-3 flex items-center gap-1.5 text-sm text-[var(--color-ink-2)]">
-                  <Home size={14} className="shrink-0 text-[var(--color-ink-3)]" />
-                  Annonce concernée : <span className="font-medium text-[var(--color-ink)]">{r.bien_titre}</span>
-                </p>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-sm text-[var(--color-ink-2)]">
+                    <Home size={14} className="shrink-0 text-[var(--color-ink-3)]" />
+                    Annonce concernée : <span className="font-medium text-[var(--color-ink)]">{r.bien_titre}</span>
+                    {r.bien_reclamations_count != null && (
+                      <span
+                        className={`ml-1 rounded-full px-2 py-0.5 text-xs font-medium ${
+                          r.bien_reclamations_count > SEUIL_RECLAMATIONS_ANNONCE
+                            ? "bg-[var(--color-rust)]/15 text-[var(--color-rust)]"
+                            : "bg-[var(--color-paper-2)] text-[var(--color-ink-3)]"
+                        }`}
+                      >
+                        {r.bien_reclamations_count} réclamation{r.bien_reclamations_count > 1 ? "s" : ""} au total
+                      </span>
+                    )}
+                  </p>
+
+                  {r.bien_reclamations_count != null && r.bien_reclamations_count > SEUIL_RECLAMATIONS_ANNONCE && r.bien_id && (
+                    <div className="flex items-center gap-2 rounded-md border border-[var(--color-rust)]/40 bg-[var(--color-rust-bg)] px-3 py-1.5">
+                      <TriangleAlert size={14} className="shrink-0 text-[var(--color-rust)]" />
+                      <span className="text-xs text-[var(--color-rust)]">
+                        Seuil de {SEUIL_RECLAMATIONS_ANNONCE} réclamations dépassé
+                      </span>
+                      <button
+                        disabled={deletingBien === r.bien_id}
+                        onClick={() => supprimerAnnonce(r.bien_id as string, r.bien_titre)}
+                        className="flex items-center gap-1 rounded-md bg-[var(--color-rust)] px-2.5 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-60"
+                      >
+                        <Trash2 size={12} />
+                        {deletingBien === r.bien_id ? "Suppression…" : "Supprimer l'annonce"}
+                      </button>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Message de réclamation */}
