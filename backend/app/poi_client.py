@@ -19,6 +19,7 @@ import logging
 import math
 import threading
 import time
+from datetime import datetime
 from typing import Literal
 
 import httpx
@@ -217,3 +218,48 @@ def get_proximite(lat: float, lon: float, rayon_km: float = 1.5) -> dict:
         _cache[cache_key] = (time.time(), resultat, _CACHE_TTL_SECONDS)
 
     return resultat
+
+
+def calculer_et_stocker_proximite(bien_id: str) -> None:
+    """
+    Calcule les proximités d'un bien (rayon par défaut) et les stocke sur
+    la ligne `bien` elle-même (`proximite_data` / `proximite_calculee_le`),
+    afin que la fiche annonce n'ait plus jamais à attendre Overpass pour un
+    affichage normal — seul le premier calcul, à la publication, est lent.
+
+    Conçu pour tourner en tâche d'arrière-plan (FastAPI `BackgroundTasks`,
+    exécutée après l'envoi de la réponse HTTP de création/màj du bien) :
+    ouvre donc sa propre session DB plutôt que de réutiliser celle de la
+    requête (fermée entre-temps). Best-effort comme le reste du module —
+    une erreur ici ne doit jamais faire planter le back-end ; au pire, la
+    fiche du bien recalculera à la volée au premier affichage (voir
+    `GET /biens/{id}/proximite` dans routers/biens.py).
+    """
+    # Import différé pour éviter tout import circulaire au chargement du
+    # module (models -> database -> ... ; poi_client reste indépendant du
+    # reste de l'app tant qu'on ne rentre pas dans cette fonction).
+    from . import models
+    from .database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        bien = db.get(models.Bien, bien_id)
+        if not bien or bien.latitude is None or bien.longitude is None:
+            return
+
+        resultat = get_proximite(bien.latitude, bien.longitude, settings.poi_rayon_km_defaut)
+        if not resultat.get("disponible"):
+            # Overpass indisponible au moment du calcul : on ne stocke rien
+            # plutôt que d'écraser une éventuelle donnée déjà valide, et on
+            # laisse `GET /biens/{id}/proximite` retenter à la volée plus tard.
+            logger.info("Proximité indisponible pour le bien %s (Overpass injoignable), non stockée", bien_id)
+            return
+
+        bien.proximite_data = resultat
+        bien.proximite_calculee_le = datetime.utcnow()
+        db.commit()
+    except Exception:
+        logger.exception("Échec du calcul/stockage de la proximité pour le bien %s", bien_id)
+        db.rollback()
+    finally:
+        db.close()

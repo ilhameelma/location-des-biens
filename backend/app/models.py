@@ -64,6 +64,15 @@ class Bien(Base):
     date_publication: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     date_maj: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Complément étape 17 — proximités (POI) calculées à la publication et
+    # stockées avec l'annonce, pour éviter de resolliciter Overpass (lent,
+    # ~1-5s) à chaque affichage de la fiche. `proximite_data` a exactement
+    # la forme renvoyée par poi_client.get_proximite() / ProximiteOut.
+    # NULL tant que le calcul en arrière-plan n'a pas encore abouti (juste
+    # après publication) ou pour les biens créés avant cette fonctionnalité.
+    proximite_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    proximite_calculee_le: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
     proprietaire: Mapped["Utilisateur"] = relationship(back_populates="biens")
     photos: Mapped[list["PhotoBien"]] = relationship(back_populates="bien", cascade="all, delete-orphan")
 

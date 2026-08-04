@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     ]
     overpass_timeout_seconds: float = 15.0
     poi_rayon_km_defaut: float = 1.5
+    # Durée de validité des proximités stockées avec l'annonce (bien.proximite_data)
+    # avant recalcul — les commerces/écoles/hôtels autour d'une adresse ne
+    # changent pas d'un jour à l'autre, une fenêtre large évite de resolliciter
+    # Overpass inutilement.
+    proximite_ttl_jours: int = 30
 
     # ============================================================
     # Filigrane sur les photos de biens (protection contre la réutilisation

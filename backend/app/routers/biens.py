@@ -1,9 +1,10 @@
 """Router FastAPI pour la gestion des biens immobiliers (propriétaire)."""
 import logging
 import uuid
+from datetime import datetime, timedelta
 from typing import List
 
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File, Form
 from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas, storage, watermark
@@ -211,8 +212,15 @@ def get_proximite_bien(
 ):
     """
     Points d'intérêt à proximité du bien (hôtels, jardins/parcs, écoles,
-    centres commerciaux), calculés à la volée depuis ses coordonnées GPS
-    via l'API Overpass (OpenStreetMap) — voir app/poi_client.py.
+    centres commerciaux) — voir app/poi_client.py.
+
+    Sert en priorité les proximités déjà calculées et stockées avec
+    l'annonce (`bien.proximite_data`, calculées en arrière-plan à la
+    publication) plutôt que de resolliciter Overpass — c'est ce cache
+    persistant qui rend l'affichage quasi instantané au lieu d'attendre
+    plusieurs secondes à chaque ouverture de la fiche. Le calcul à la
+    volée ne reste utilisé qu'en repli : rayon non standard demandé, ou
+    calcul d'arrière-plan pas encore terminé (bien tout juste publié).
 
     Best-effort : si Overpass est indisponible ou lent, renvoie
     `disponible: false` avec des catégories vides plutôt qu'une erreur —
@@ -225,12 +233,33 @@ def get_proximite_bien(
         return schemas.ProximiteOut(disponible=False, categories={})
 
     rayon = max(0.2, min(rayon_km, 5.0))  # borne raisonnable : 200 m à 5 km
-    return poi_client.get_proximite(bien.latitude, bien.longitude, rayon)
+    rayon_defaut = abs(rayon - settings.poi_rayon_km_defaut) < 0.01
+
+    if (
+        rayon_defaut
+        and bien.proximite_data
+        and bien.proximite_calculee_le
+        and (datetime.utcnow() - bien.proximite_calculee_le) < timedelta(days=settings.proximite_ttl_jours)
+    ):
+        return bien.proximite_data
+
+    resultat = poi_client.get_proximite(bien.latitude, bien.longitude, rayon)
+
+    # Persiste le résultat pour la prochaine consultation — couvre le cas
+    # d'un bien publié avant cette fonctionnalité, ou dont le calcul
+    # d'arrière-plan n'a pas encore abouti au moment de ce premier appel.
+    if rayon_defaut and resultat.get("disponible"):
+        bien.proximite_data = resultat
+        bien.proximite_calculee_le = datetime.utcnow()
+        db.commit()
+
+    return resultat
 
 
 @router.post("", response_model=schemas.BienOut, status_code=status.HTTP_201_CREATED)
 def create_bien(
     payload: schemas.BienCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: models.Utilisateur = Depends(require_role(*ROLES_ANNONCEURS)),
 ):
@@ -300,6 +329,14 @@ def create_bien(
     # Étape 18 — Recherche avancée : indexe le bien dans Elasticsearch
     es_client.index_bien(bien)
 
+    # Complément étape 17 — proximités : calculées en arrière-plan (après
+    # l'envoi de la réponse) et stockées avec l'annonce, pour que la fiche
+    # du bien n'ait ensuite plus jamais à attendre Overpass. Ne bloque pas
+    # la publication : si le bien n'a pas encore de position GPS, ce sera
+    # fait au prochain PATCH qui en ajoute une (voir update_bien ci-dessous).
+    if bien.latitude is not None and bien.longitude is not None:
+        background_tasks.add_task(poi_client.calculer_et_stocker_proximite, str(bien.id))
+
     return bien
 
 
@@ -307,6 +344,7 @@ def create_bien(
 def update_bien(
     bien_id: uuid.UUID,
     payload: schemas.BienUpdate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     user: models.Utilisateur = Depends(require_role(*ROLES_ANNONCEURS)),
 ):
@@ -315,14 +353,28 @@ def update_bien(
     if not bien or bien.proprietaire_id != user.id:
         raise HTTPException(status_code=404, detail="Bien non trouvé")
 
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    champs_modifies = payload.model_dump(exclude_unset=True)
+    position_modifiee = "latitude" in champs_modifies or "longitude" in champs_modifies
+
+    for field, value in champs_modifies.items():
         setattr(bien, field, value)
+
+    # La position a changé : les proximités stockées correspondent à
+    # l'ancien emplacement et ne sont plus valables — on les invalide tout
+    # de suite (plutôt que d'afficher les commodités du mauvais endroit
+    # jusqu'au recalcul) et on relance le calcul en arrière-plan.
+    if position_modifiee:
+        bien.proximite_data = None
+        bien.proximite_calculee_le = None
 
     db.commit()
     db.refresh(bien)
 
     # Étape 18 — Recherche avancée : réindexe le bien (titre/prix/statut/position... modifiés)
     es_client.index_bien(bien)
+
+    if position_modifiee and bien.latitude is not None and bien.longitude is not None:
+        background_tasks.add_task(poi_client.calculer_et_stocker_proximite, str(bien.id))
 
     return bien
 

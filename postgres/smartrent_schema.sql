@@ -88,7 +88,13 @@ CREATE TABLE bien (
     mandant_nom         VARCHAR(150),
     mandant_telephone   VARCHAR(20),
     date_publication    TIMESTAMP NOT NULL DEFAULT now(),
-    date_maj            TIMESTAMP NOT NULL DEFAULT now()
+    date_maj            TIMESTAMP NOT NULL DEFAULT now(),
+    -- Complément étape 17 : proximités (POI Overpass/OSM) calculées à la
+    -- publication et stockées ici, pour ne plus jamais recalculer à la
+    -- volée (lent) à chaque affichage de la fiche. NULL = pas encore
+    -- calculées (bien tout juste créé, calcul en arrière-plan en cours).
+    proximite_data        JSONB,
+    proximite_calculee_le TIMESTAMP
 );
 
 CREATE INDEX idx_bien_proprietaire ON bien(proprietaire_id);
