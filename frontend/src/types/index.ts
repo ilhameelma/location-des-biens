@@ -1,7 +1,11 @@
 // Types alignés EXACTEMENT sur les réponses JSON du back-end FastAPI
 // (voir backend/app/schemas.py — lui-même aligné sur postgres/smartrent_schema.sql)
 
-export type Role = "admin" | "proprietaire" | "client";
+// Rôles "annonceurs" professionnels ajoutés en plus de proprietaire :
+//   agence     = agence immobilière
+//   promoteur  = promoteur immobilier (publie des lots au sein d'un projet)
+//   courtier   = courtier / "samsar" (publie au nom d'un propriétaire tiers)
+export type Role = "admin" | "proprietaire" | "client" | "agence" | "promoteur" | "courtier";
 export type StatutVerification = "en_attente" | "verifie" | "rejete";
 
 export interface Utilisateur {
@@ -12,6 +16,9 @@ export interface Utilisateur {
   telephone?: string | null;
   role: Role;
   statut_verification: StatutVerification;
+  raison_sociale?: string | null;
+  numero_rc?: string | null;
+  numero_carte_pro?: string | null;
   date_creation: string;
 }
 
@@ -48,9 +55,16 @@ export interface Bien {
   statut: StatutBien;
   latitude?: number | null;
   longitude?: number | null;
+  // Promoteur uniquement : lot rattaché à un projet (voir ProjetImmobilier).
+  projet_id?: string | null;
+  // Courtier (obligatoire) / agence (optionnel) : propriétaire réel du bien.
+  mandant_nom?: string | null;
+  mandant_telephone?: string | null;
   photos: PhotoBien[];
   proprietaire_nom?: string | null;
   proprietaire_prenom?: string | null;
+  proprietaire_role?: Role | null;
+  proprietaire_raison_sociale?: string | null;
 }
 
 // Fiche profil publique d'un propriétaire (GET /utilisateurs/{id}/profil-public)
@@ -58,10 +72,37 @@ export interface ProprietairePublic {
   id: string;
   nom: string;
   prenom: string;
+  role: Role;
+  raison_sociale?: string | null;
   date_creation: string;
   nb_biens_actifs: number;
   note_moyenne: number | null;
   nb_avis: number;
+}
+
+// ---------- Projet immobilier (promoteur) ----------
+export type StatutProjet = "en_construction" | "livre" | "termine";
+
+export interface ProjetImmobilier {
+  id: string;
+  promoteur_id: string;
+  nom: string;
+  description?: string | null;
+  type_bien: TypeBien;
+  ville: string;
+  adresse: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  statut: StatutProjet;
+  date_livraison_prevue?: string | null;
+  date_creation: string;
+  nb_lots: number;
+  nb_lots_disponibles: number;
+  prix_min?: number | null;
+  prix_max?: number | null;
+  promoteur_nom?: string | null;
+  promoteur_prenom?: string | null;
+  promoteur_raison_sociale?: string | null;
 }
 
 // Complément étape 17 — points d'intérêt à proximité (Overpass/OSM)

@@ -2,9 +2,12 @@ import uuid
 from datetime import datetime, date
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, ConfigDict, Field
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, model_validator
 
-Role = Literal["admin", "proprietaire", "client"]
+# Rôles "annonceurs" professionnels (agence/promoteur/courtier), en plus du
+# propriétaire particulier — voir ROLES_ANNONCEURS dans deps.py pour le
+# groupe utilisé côté contrôle d'accès.
+Role = Literal["admin", "proprietaire", "client", "agence", "promoteur", "courtier"]
 StatutVerification = Literal["en_attente", "verifie", "rejete"]
 TypeBien = Literal["maison", "appartement", "magasin", "garage", "bureau", "terrain", "villa"]
 TypeTransaction = Literal["location", "vente"]
@@ -13,6 +16,10 @@ StatutReservation = Literal["en_attente", "confirmee", "refusee", "annulee"]
 StatutContrat = Literal["actif", "termine", "resilie"]
 StatutPaiement = Literal["en_attente", "reussi", "echoue", "rembourse"]
 StatutReclamation = Literal["ouverte", "en_cours", "resolue", "rejetee"]
+StatutProjet = Literal["en_construction", "livre", "termine"]
+
+# Rôles pour qui la raison sociale (nom de société) est obligatoire à l'inscription.
+_ROLES_RAISON_SOCIALE_OBLIGATOIRE = ("agence", "promoteur")
 
 
 # ---------- Auth ----------
@@ -35,6 +42,23 @@ class RegisterRequest(BaseModel):
     password: str = Field(min_length=8)
     telephone: Optional[str] = None
     role: Role
+    # Champs professionnels — raison_sociale obligatoire pour agence/promoteur
+    # (voir validateur ci-dessous), numero_carte_pro optionnel pour courtier
+    # (un "samsar" n'a pas toujours de carte professionnelle officielle).
+    raison_sociale: Optional[str] = None
+    numero_rc: Optional[str] = None
+    numero_carte_pro: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _valider_champs_professionnels(self):
+        if self.role in _ROLES_RAISON_SOCIALE_OBLIGATOIRE and not (
+            self.raison_sociale and self.raison_sociale.strip()
+        ):
+            raise ValueError(
+                "La raison sociale est obligatoire pour un compte Agence immobilière "
+                "ou Promoteur immobilier."
+            )
+        return self
 
 
 # ---------- Utilisateur ----------
@@ -47,6 +71,9 @@ class UtilisateurOut(BaseModel):
     telephone: Optional[str] = None
     role: Role
     statut_verification: StatutVerification
+    raison_sociale: Optional[str] = None
+    numero_rc: Optional[str] = None
+    numero_carte_pro: Optional[str] = None
     date_creation: datetime
 
 
@@ -57,6 +84,9 @@ class UtilisateurUpdate(BaseModel):
     prenom: Optional[str] = Field(default=None, min_length=1, max_length=100)
     email: Optional[EmailStr] = None
     telephone: Optional[str] = Field(default=None, max_length=20)
+    raison_sociale: Optional[str] = Field(default=None, max_length=150)
+    numero_rc: Optional[str] = Field(default=None, max_length=50)
+    numero_carte_pro: Optional[str] = Field(default=None, max_length=50)
 
 
 class ChangePasswordRequest(BaseModel):
@@ -84,6 +114,12 @@ class BienCreate(BaseModel):
     nb_pieces: Optional[int] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    # Promoteur uniquement : lot rattaché à un projet (voir routers/projets.py) —
+    # requis pour ce rôle, refusé pour les autres (contrôlé côté router).
+    projet_id: Optional[uuid.UUID] = None
+    # Courtier (obligatoire) / agence (optionnel) : propriétaire réel du bien.
+    mandant_nom: Optional[str] = None
+    mandant_telephone: Optional[str] = None
 
 
 class BienUpdate(BaseModel):
@@ -103,6 +139,8 @@ class BienUpdate(BaseModel):
     statut: Optional[StatutBien] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    mandant_nom: Optional[str] = None
+    mandant_telephone: Optional[str] = None
 
 
 class BienOut(BaseModel):
@@ -121,24 +159,80 @@ class BienOut(BaseModel):
     statut: StatutBien
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    projet_id: Optional[uuid.UUID] = None
+    mandant_nom: Optional[str] = None
+    mandant_telephone: Optional[str] = None
     photos: list[PhotoBienOut] = []
     # Pratique pour l'affichage ("Publié par ...") sans requête supplémentaire.
     proprietaire_nom: Optional[str] = None
     proprietaire_prenom: Optional[str] = None
+    proprietaire_role: Optional[Role] = None
+    proprietaire_raison_sociale: Optional[str] = None
 
 
 # ---------- Fiche profil publique d'un propriétaire ----------
 class ProprietairePublicOut(BaseModel):
     """Consultable par tout visiteur (ex. lien "Voir le profil" depuis une
     fiche bien) — expose uniquement des informations non sensibles (pas
-    d'email, pas de téléphone)."""
+    d'email, pas de téléphone). Utilisé pour les 4 rôles annonceurs
+    (proprietaire/agence/promoteur/courtier)."""
     id: uuid.UUID
     nom: str
     prenom: str
+    role: Role
+    raison_sociale: Optional[str] = None
     date_creation: datetime
     nb_biens_actifs: int
     note_moyenne: Optional[float] = None
     nb_avis: int
+
+
+# ---------- Projet immobilier (promoteur) ----------
+class ProjetCreate(BaseModel):
+    nom: str
+    description: Optional[str] = None
+    type_bien: TypeBien
+    ville: str
+    adresse: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    date_livraison_prevue: Optional[date] = None
+
+
+class ProjetUpdate(BaseModel):
+    nom: Optional[str] = None
+    description: Optional[str] = None
+    type_bien: Optional[TypeBien] = None
+    ville: Optional[str] = None
+    adresse: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    date_livraison_prevue: Optional[date] = None
+    statut: Optional[StatutProjet] = None
+
+
+class ProjetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    promoteur_id: uuid.UUID
+    nom: str
+    description: Optional[str] = None
+    type_bien: TypeBien
+    ville: str
+    adresse: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    statut: StatutProjet
+    date_livraison_prevue: Optional[date] = None
+    date_creation: datetime
+    # Enrichissements calculés côté routeur (voir routers/projets.py._enrich)
+    nb_lots: int = 0
+    nb_lots_disponibles: int = 0
+    prix_min: Optional[float] = None
+    prix_max: Optional[float] = None
+    promoteur_nom: Optional[str] = None
+    promoteur_prenom: Optional[str] = None
+    promoteur_raison_sociale: Optional[str] = None
 
 
 # ---------- Proximité (complément étape 17 — points d'intérêt OSM/Overpass) ----------

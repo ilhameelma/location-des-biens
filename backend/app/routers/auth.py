@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import get_current_user
+from ..deps import ROLES_ANNONCEURS, get_current_user
 from ..security import hash_password, verify_password, create_access_token
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -22,9 +22,13 @@ def register(payload: schemas.RegisterRequest, db: Session = Depends(get_db)):
         telephone=payload.telephone,
         mot_de_passe_hash=hash_password(payload.password),
         role=payload.role,
-        # Un propriétaire doit être vérifié par un admin avant de publier (cf. cahier des charges) ;
+        raison_sociale=payload.raison_sociale,
+        numero_rc=payload.numero_rc,
+        numero_carte_pro=payload.numero_carte_pro,
+        # Un propriétaire ou un professionnel (agence/promoteur/courtier) doit
+        # être vérifié par un admin avant de publier (cf. cahier des charges) ;
         # un client/admin est actif immédiatement.
-        statut_verification=("en_attente" if payload.role == "proprietaire" else "verifie"),
+        statut_verification=("en_attente" if payload.role in ROLES_ANNONCEURS else "verifie"),
     )
     db.add(user)
     db.commit()

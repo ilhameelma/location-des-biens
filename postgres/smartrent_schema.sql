@@ -16,12 +16,47 @@ CREATE TABLE utilisateur (
     email               VARCHAR(150) UNIQUE NOT NULL,
     mot_de_passe_hash   VARCHAR(255) NOT NULL,
     telephone           VARCHAR(20),
-    role                VARCHAR(20) NOT NULL CHECK (role IN ('admin', 'proprietaire', 'client')),
+    -- Rôles "annonceurs" professionnels ajoutés en plus de proprietaire :
+    --   agence     = agence immobilière (portefeuille de biens, éventuellement pour le compte de tiers)
+    --   promoteur  = promoteur immobilier (publie des lots au sein d'un projet immobilier neuf)
+    --   courtier   = courtier / "samsar" (publie des biens au nom d'un propriétaire tiers, mandant_nom obligatoire)
+    role                VARCHAR(20) NOT NULL
+                        CHECK (role IN ('admin', 'proprietaire', 'client', 'agence', 'promoteur', 'courtier')),
     statut_verification VARCHAR(20) NOT NULL DEFAULT 'en_attente'
                         CHECK (statut_verification IN ('en_attente', 'verifie', 'rejete')),
+    -- Champs professionnels (NULL pour client/admin/proprietaire particulier) :
+    raison_sociale      VARCHAR(150),  -- nom de la société — obligatoire pour agence/promoteur
+    numero_rc           VARCHAR(50),   -- registre de commerce / agrément promoteur
+    numero_carte_pro    VARCHAR(50),   -- carte professionnelle courtier (optionnel — "samsar" souvent informel)
     date_creation       TIMESTAMP NOT NULL DEFAULT now(),
     date_maj            TIMESTAMP NOT NULL DEFAULT now()
 );
+
+-- ============================================================
+-- Table : projet_immobilier (promoteur uniquement)
+-- Un projet regroupe plusieurs lots (biens neufs) publiés par un même
+-- promoteur — ex. "Résidence Al Manar" à Tanger, 24 lots.
+-- ============================================================
+CREATE TABLE projet_immobilier (
+    id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    promoteur_id            UUID NOT NULL REFERENCES utilisateur(id) ON DELETE CASCADE,
+    nom                     VARCHAR(200) NOT NULL,
+    description             TEXT,
+    type_bien               VARCHAR(30) NOT NULL
+                            CHECK (type_bien IN ('maison', 'appartement', 'magasin', 'garage', 'bureau', 'terrain', 'villa')),
+    ville                   VARCHAR(100) NOT NULL,
+    adresse                 VARCHAR(255) NOT NULL,
+    latitude                DOUBLE PRECISION,
+    longitude               DOUBLE PRECISION,
+    statut                  VARCHAR(20) NOT NULL DEFAULT 'en_construction'
+                            CHECK (statut IN ('en_construction', 'livre', 'termine')),
+    date_livraison_prevue   DATE,
+    date_creation           TIMESTAMP NOT NULL DEFAULT now(),
+    date_maj                TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_projet_promoteur ON projet_immobilier(promoteur_id);
+CREATE INDEX idx_projet_ville ON projet_immobilier(ville);
 
 -- ============================================================
 -- Table : bien
@@ -45,6 +80,13 @@ CREATE TABLE bien (
     nb_pieces           INTEGER,
     statut              VARCHAR(20) NOT NULL DEFAULT 'disponible'
                         CHECK (statut IN ('disponible', 'loue', 'vendu', 'en_attente', 'suspendu')),
+    -- Promoteur uniquement : lot rattaché à un projet immobilier. NULL pour
+    -- les 3 autres rôles annonceurs (proprietaire/agence/courtier).
+    projet_id           UUID REFERENCES projet_immobilier(id) ON DELETE SET NULL,
+    -- Courtier (obligatoire) / agence (optionnel) : identité du propriétaire
+    -- réel pour le compte duquel l'annonce est publiée ("sous mandat").
+    mandant_nom         VARCHAR(150),
+    mandant_telephone   VARCHAR(20),
     date_publication    TIMESTAMP NOT NULL DEFAULT now(),
     date_maj            TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -53,6 +95,7 @@ CREATE INDEX idx_bien_proprietaire ON bien(proprietaire_id);
 CREATE INDEX idx_bien_ville ON bien(ville);
 CREATE INDEX idx_bien_type ON bien(type_bien);
 CREATE INDEX idx_bien_type_transaction ON bien(type_transaction);
+CREATE INDEX idx_bien_projet ON bien(projet_id);
 
 -- ============================================================
 -- Table : photo_bien

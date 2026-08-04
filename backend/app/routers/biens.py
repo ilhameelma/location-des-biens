@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas, storage, watermark
 from ..database import get_db
-from ..deps import get_current_user, require_role, get_optional_user
+from ..deps import ROLES_ANNONCEURS, get_current_user, require_role, get_optional_user
 from ..kafka_producer import publish_event
 from ..kafka_topics import BIEN_CREE
 from .. import es_client
@@ -131,10 +131,11 @@ def search_biens(
 def list_my_biens(
     type_transaction: str | None = None,
     db: Session = Depends(get_db),
-    user: models.Utilisateur = Depends(require_role("proprietaire")),
+    user: models.Utilisateur = Depends(require_role(*ROLES_ANNONCEURS)),
 ):
-    """Liste les biens du propriétaire connecté (avec photos), filtrable par
-    type_transaction (location|vente)."""
+    """Liste les biens de l'annonceur connecté — propriétaire, agence,
+    promoteur ou courtier (avec photos), filtrable par type_transaction
+    (location|vente)."""
     query = (
         db.query(models.Bien)
         .options(joinedload(models.Bien.photos), joinedload(models.Bien.proprietaire))
@@ -163,7 +164,7 @@ def list_biens_by_proprietaire(
     admin) voient en plus ses annonces en_attente/loué/vendu/suspendu.
     """
     proprietaire = db.get(models.Utilisateur, proprietaire_id)
-    if not proprietaire or proprietaire.role != "proprietaire":
+    if not proprietaire or proprietaire.role not in ROLES_ANNONCEURS:
         raise HTTPException(status_code=404, detail="Propriétaire introuvable")
 
     query = (
@@ -231,11 +232,48 @@ def get_proximite_bien(
 def create_bien(
     payload: schemas.BienCreate,
     db: Session = Depends(get_db),
-    user: models.Utilisateur = Depends(require_role("proprietaire")),
+    user: models.Utilisateur = Depends(require_role(*ROLES_ANNONCEURS)),
 ):
-    """Crée une nouvelle annonce (bien immobilier)."""
+    """
+    Crée une nouvelle annonce (bien immobilier). Règles spécifiques selon le
+    rôle de l'annonceur connecté :
+
+    - proprietaire : comportement historique, aucune contrainte supplémentaire.
+    - agence       : comme proprietaire, avec mandant_nom/téléphone optionnels
+                     (l'agence peut publier pour son propre compte ou pour un tiers).
+    - promoteur    : doit obligatoirement rattacher le lot à un projet qui lui
+                     appartient déjà (POST /projets au préalable) ; les champs
+                     mandant_* n'ont pas de sens ici et sont ignorés.
+    - courtier     : mandant_nom/téléphone optionnels (le bien est généralement
+                     publié "sous mandat" au nom d'un propriétaire tiers, mais le
+                     courtier peut choisir de ne pas le préciser) ; projet_id
+                     est réservé au promoteur.
+    """
+    data = payload.model_dump()
+
+    if user.role == "promoteur":
+        if not data.get("projet_id"):
+            raise HTTPException(
+                status_code=422,
+                detail="Un promoteur doit publier un lot au sein d'un projet existant "
+                "(champ projet_id requis) — créez d'abord le projet via POST /projets.",
+            )
+        projet = db.get(models.ProjetImmobilier, data["projet_id"])
+        if not projet or projet.promoteur_id != user.id:
+            raise HTTPException(status_code=404, detail="Projet introuvable")
+        data["mandant_nom"] = None
+        data["mandant_telephone"] = None
+    elif user.role == "courtier":
+        data["projet_id"] = None
+    else:  # proprietaire, agence
+        if data.get("projet_id"):
+            raise HTTPException(
+                status_code=422,
+                detail="Seul un promoteur peut rattacher une annonce à un projet immobilier.",
+            )
+
     bien = models.Bien(
-        **payload.model_dump(),
+        **data,
         proprietaire_id=user.id,
         statut="disponible",
     )
@@ -270,7 +308,7 @@ def update_bien(
     bien_id: uuid.UUID,
     payload: schemas.BienUpdate,
     db: Session = Depends(get_db),
-    user: models.Utilisateur = Depends(require_role("proprietaire")),
+    user: models.Utilisateur = Depends(require_role(*ROLES_ANNONCEURS)),
 ):
     """Met à jour un bien existant."""
     bien = db.get(models.Bien, bien_id)
@@ -293,7 +331,7 @@ def update_bien(
 def delete_bien(
     bien_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: models.Utilisateur = Depends(require_role("proprietaire", "admin")),
+    user: models.Utilisateur = Depends(require_role(*ROLES_ANNONCEURS, "admin")),
 ):
     """Supprime un bien et ses photos.
 
@@ -333,7 +371,7 @@ async def upload_photos(
     photos: List[UploadFile] = File(...),
     ordres: List[str] = Form(default=[]),
     db: Session = Depends(get_db),
-    user: models.Utilisateur = Depends(require_role("proprietaire")),
+    user: models.Utilisateur = Depends(require_role(*ROLES_ANNONCEURS)),
 ):
     """
     Upload des photos pour un bien.

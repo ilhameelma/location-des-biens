@@ -15,6 +15,8 @@ import {
   Home,
   UserCircle,
   Heart,
+  HardHat,
+  FolderKanban,
 } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { useFavorisCount } from "../../lib/useFavorisCount";
@@ -47,6 +49,31 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: "/proprietaire/avis", label: "Avis clients", icon: Star },
   ],
 
+  agence: [
+    { to: "/agence", label: "Mes biens", icon: LayoutGrid },
+    { to: "/agence/demandes", label: "Demandes", icon: FileSignature },
+    { to: "/agence/paiements", label: "Paiements", icon: Wallet },
+    { to: "/agence/messages", label: "Messagerie", icon: MessageSquare },
+    { to: "/agence/avis", label: "Avis clients", icon: Star },
+  ],
+
+  promoteur: [
+    { to: "/promoteur", label: "Mes biens (lots)", icon: HardHat },
+    { to: "/promoteur/projets", label: "Mes projets", icon: FolderKanban },
+    { to: "/promoteur/demandes", label: "Demandes", icon: FileSignature },
+    { to: "/promoteur/paiements", label: "Paiements", icon: Wallet },
+    { to: "/promoteur/messages", label: "Messagerie", icon: MessageSquare },
+    { to: "/promoteur/avis", label: "Avis clients", icon: Star },
+  ],
+
+  courtier: [
+    { to: "/courtier", label: "Mes biens", icon: LayoutGrid },
+    { to: "/courtier/demandes", label: "Demandes", icon: FileSignature },
+    { to: "/courtier/paiements", label: "Paiements", icon: Wallet },
+    { to: "/courtier/messages", label: "Messagerie", icon: MessageSquare },
+    { to: "/courtier/avis", label: "Avis clients", icon: Star },
+  ],
+
   admin: [
     { to: "/admin", label: "Vue d'ensemble", icon: BarChart3 },
     { to: "/admin/utilisateurs", label: "Utilisateurs", icon: Users },
@@ -58,6 +85,9 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
 const ROLE_LABEL: Record<Role, string> = {
   client: "ESPACE CLIENT",
   proprietaire: "ESPACE PROPRIÉTAIRE",
+  agence: "ESPACE AGENCE",
+  promoteur: "ESPACE PROMOTEUR",
+  courtier: "ESPACE COURTIER",
   admin: "ADMINISTRATION",
 };
 

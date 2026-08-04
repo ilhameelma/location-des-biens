@@ -21,8 +21,13 @@ class Utilisateur(Base):
     email: Mapped[str] = mapped_column(String(150), unique=True, index=True)
     mot_de_passe_hash: Mapped[str] = mapped_column(String(255))
     telephone: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    role: Mapped[str] = mapped_column(String(20))  # admin | proprietaire | client
+    # admin | client | proprietaire | agence | promoteur | courtier
+    role: Mapped[str] = mapped_column(String(20))
     statut_verification: Mapped[str] = mapped_column(String(20), default="en_attente")  # en_attente|verifie|rejete
+    # Champs professionnels (NULL pour client/admin/proprietaire particulier)
+    raison_sociale: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    numero_rc: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    numero_carte_pro: Mapped[str | None] = mapped_column(String(50), nullable=True)
     date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     date_maj: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -47,6 +52,15 @@ class Bien(Base):
     prix: Mapped[float] = mapped_column(Numeric(12, 2))
     nb_pieces: Mapped[int | None] = mapped_column(Integer, nullable=True)
     statut: Mapped[str] = mapped_column(String(20), default="disponible", index=True)
+    # Promoteur uniquement : lot rattaché à un projet immobilier (voir ProjetImmobilier).
+    # NULL pour les autres rôles annonceurs (proprietaire/agence/courtier).
+    projet_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("projet_immobilier.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Courtier (obligatoire) / agence (optionnel) : identité du propriétaire
+    # réel pour le compte duquel l'annonce est publiée ("sous mandat").
+    mandant_nom: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    mandant_telephone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     date_publication: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     date_maj: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -64,6 +78,37 @@ class Bien(Base):
     @property
     def proprietaire_prenom(self) -> str | None:
         return self.proprietaire.prenom if self.proprietaire else None
+
+    @property
+    def proprietaire_role(self) -> str | None:
+        return self.proprietaire.role if self.proprietaire else None
+
+    @property
+    def proprietaire_raison_sociale(self) -> str | None:
+        return self.proprietaire.raison_sociale if self.proprietaire else None
+
+
+class ProjetImmobilier(Base):
+    """Projet immobilier neuf publié par un promoteur (rôle `promoteur`).
+
+    Un projet regroupe plusieurs lots — les biens dont `bien.projet_id`
+    pointe vers ce projet (ex. "Résidence Al Manar", 24 appartements)."""
+
+    __tablename__ = "projet_immobilier"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
+    promoteur_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("utilisateur.id", ondelete="CASCADE"))
+    nom: Mapped[str] = mapped_column(String(200))
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    type_bien: Mapped[str] = mapped_column(String(30))
+    ville: Mapped[str] = mapped_column(String(100), index=True)
+    adresse: Mapped[str] = mapped_column(String(255))
+    latitude: Mapped[float | None] = mapped_column(Double, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Double, nullable=True)
+    statut: Mapped[str] = mapped_column(String(20), default="en_construction")  # en_construction|livre|termine
+    date_livraison_prevue: Mapped[date | None] = mapped_column(Date, nullable=True)
+    date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    date_maj: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
 class PhotoBien(Base):

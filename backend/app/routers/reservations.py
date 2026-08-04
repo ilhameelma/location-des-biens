@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import require_role
+from ..deps import ROLES_ANNONCEURS, require_role
 from ..kafka_producer import publish_event
 from ..kafka_topics import CONTRAT_SIGNE, RESERVATION_CREEE, RESERVATION_STATUT_MAJ
 from ..notifications_service import notify
@@ -73,7 +73,7 @@ def my_reservations(
 @router.get("/recues", response_model=list[schemas.ReservationOut])
 def received_reservations(
     db: Session = Depends(get_db),
-    current_user: models.Utilisateur = Depends(require_role("proprietaire")),
+    current_user: models.Utilisateur = Depends(require_role(*ROLES_ANNONCEURS)),
 ):
     """Demandes reçues sur les biens du propriétaire connecté."""
     return (
@@ -90,7 +90,7 @@ def update_statut(
     reservation_id: uuid.UUID,
     payload: schemas.ReservationStatutUpdate,
     db: Session = Depends(get_db),
-    current_user: models.Utilisateur = Depends(require_role("proprietaire")),
+    current_user: models.Utilisateur = Depends(require_role(*ROLES_ANNONCEURS)),
 ):
     reservation = db.get(models.Reservation, reservation_id)
     if not reservation:

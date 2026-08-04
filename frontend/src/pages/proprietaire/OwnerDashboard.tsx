@@ -1,21 +1,37 @@
 import { useEffect, useState, useRef } from "react";
-import { Building2, Wallet, FileSignature, Plus, X, Upload, Pencil, Trash2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Building2, Wallet, FileSignature, Plus, X, Upload, Pencil, Trash2, FolderKanban } from "lucide-react";
 import StatCard from "../../components/ui/StatCard";
 import PropertyCard from "../../components/ui/PropertyCard";
 import EstimationWidget from "../../components/ia/EstimationWidget";
 import LocationPicker from "../../components/map/LocationPicker";
 import { api, formatErrorDetail } from "../../lib/api";
+import { useAuth } from "../../lib/auth";
 import type { Bien, TypeBien, TypeTransaction } from "../../types";
 
 const TYPES: TypeBien[] = ["appartement", "maison", "villa", "bureau", "magasin", "garage", "terrain"];
 
 export default function OwnerDashboard() {
+  const { user } = useAuth();
+  // Le formulaire de publication et ses règles changent selon le rôle :
+  // - promoteur : ne publie jamais directement ici (un lot doit être rattaché
+  //   à un projet — voir /promoteur/projets), donc pas de formulaire du tout.
+  // - courtier  : mandant_nom/téléphone optionnels (bascule "pour le compte d'un tiers").
+  // - agence    : mandant_nom/téléphone optionnels (peut publier pour son
+  //   propre compte ou pour le compte d'un tiers).
+  // - proprietaire : comportement historique, aucun champ mandant.
+  const role = user?.role ?? "proprietaire";
+  const estPromoteur = role === "promoteur";
+  const estCourtier = role === "courtier";
+  const estAgence = role === "agence";
   const [biens, setBiens] = useState<Bien[]>([]);
   const [filtreTransaction, setFiltreTransaction] = useState<"tous" | TypeTransaction>("tous");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Pour l'agence : bascule optionnelle "publier pour le compte d'un tiers".
+  const [pourTiers, setPourTiers] = useState(false);
 
   const [form, setForm] = useState({
     titre: "",
@@ -29,6 +45,8 @@ export default function OwnerDashboard() {
     nb_pieces: "",
     latitude: null as number | null,
     longitude: null as number | null,
+    mandant_nom: "",
+    mandant_telephone: "",
   });
 
   // --- Gestion des images ---
@@ -54,6 +72,8 @@ export default function OwnerDashboard() {
     prix: "",
     superficie: "",
     nb_pieces: "",
+    mandant_nom: "",
+    mandant_telephone: "",
   });
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -109,7 +129,10 @@ export default function OwnerDashboard() {
       nb_pieces: "",
       latitude: null,
       longitude: null,
+      mandant_nom: "",
+      mandant_telephone: "",
     });
+    setPourTiers(false);
     previewUrls.forEach((url) => URL.revokeObjectURL(url));
     setSelectedImages([]);
     setPreviewUrls([]);
@@ -134,6 +157,10 @@ export default function OwnerDashboard() {
         nb_pieces: form.nb_pieces ? Number(form.nb_pieces) : null,
         latitude: form.latitude,
         longitude: form.longitude,
+        // Courtier/agence : envoyés seulement si la bascule "pour le compte
+        // d'un tiers" est activée — le mandat reste optionnel dans tous les cas.
+        mandant_nom: (estCourtier || estAgence) && pourTiers ? form.mandant_nom : null,
+        mandant_telephone: (estCourtier || estAgence) && pourTiers ? form.mandant_telephone : null,
       });
 
       const bienId = bienRes.id;
@@ -222,6 +249,8 @@ export default function OwnerDashboard() {
       prix: String(bien.prix),
       superficie: bien.superficie != null ? String(bien.superficie) : "",
       nb_pieces: bien.nb_pieces != null ? String(bien.nb_pieces) : "",
+      mandant_nom: bien.mandant_nom ?? "",
+      mandant_telephone: bien.mandant_telephone ?? "",
     });
   };
 
@@ -242,6 +271,12 @@ export default function OwnerDashboard() {
         prix: Number(editForm.prix),
         superficie: editForm.superficie ? Number(editForm.superficie) : null,
         nb_pieces: editForm.nb_pieces ? Number(editForm.nb_pieces) : null,
+        ...(estCourtier || estAgence
+          ? {
+              mandant_nom: editForm.mandant_nom || null,
+              mandant_telephone: editForm.mandant_telephone || null,
+            }
+          : {}),
       });
       setEditingBienId(null);
       fetchBiens();
@@ -274,16 +309,36 @@ export default function OwnerDashboard() {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h1 className="tick-rule font-display text-2xl text-[var(--color-ink)]">Mes biens</h1>
-        <button
-          type="button"
-          onClick={() => setShowForm((s) => !s)}
-          className="flex items-center gap-2 rounded-md bg-[var(--color-brass)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-brass-deep)]"
-        >
-          {showForm ? <X size={16} /> : <Plus size={16} />}
-          {showForm ? "Annuler" : "Publier une annonce"}
-        </button>
+        <h1 className="tick-rule font-display text-2xl text-[var(--color-ink)]">
+          {estPromoteur ? "Mes biens (lots)" : "Mes biens"}
+        </h1>
+        {estPromoteur ? (
+          <Link
+            to="/promoteur/projets"
+            className="flex items-center gap-2 rounded-md bg-[var(--color-brass)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-brass-deep)]"
+          >
+            <FolderKanban size={16} />
+            Gérer mes projets
+          </Link>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setShowForm((s) => !s)}
+            className="flex items-center gap-2 rounded-md bg-[var(--color-brass)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--color-brass-deep)]"
+          >
+            {showForm ? <X size={16} /> : <Plus size={16} />}
+            {showForm ? "Annuler" : "Publier une annonce"}
+          </button>
+        )}
       </div>
+
+      {estPromoteur && (
+        <p className="mt-2 text-sm text-[var(--color-ink-3)]">
+          En tant que promoteur, vos annonces (lots) se publient depuis un projet
+          immobilier. Créez ou ouvrez un projet dans « Mes projets » pour y ajouter
+          des lots — ils apparaîtront automatiquement ici.
+        </p>
+      )}
 
       <div className="mt-4 flex w-fit overflow-hidden rounded-md border border-[var(--color-line)]">
         {(["tous", "location", "vente"] as const).map((v) => (
@@ -443,6 +498,44 @@ export default function OwnerDashboard() {
               className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
             />
           </div>
+
+          {/* --- Mandat (courtier / agence) : toujours optionnel --- */}
+          {(estCourtier || estAgence) && (
+            <div className="sm:col-span-2 rounded-md border border-[var(--color-line)] bg-[var(--color-paper-2)] p-3">
+              <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-ink-2)]">
+                <input
+                  type="checkbox"
+                  checked={pourTiers}
+                  onChange={(e) => setPourTiers(e.target.checked)}
+                />
+                Ce bien est proposé pour le compte d'un propriétaire tiers (mandat)
+              </label>
+              {pourTiers && (
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">
+                      Nom du propriétaire mandant (optionnel)
+                    </label>
+                    <input
+                      value={form.mandant_nom}
+                      onChange={(e) => setForm({ ...form, mandant_nom: e.target.value })}
+                      className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">
+                      Téléphone du mandant (optionnel)
+                    </label>
+                    <input
+                      value={form.mandant_telephone}
+                      onChange={(e) => setForm({ ...form, mandant_telephone: e.target.value })}
+                      className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* --- Champ d'upload d'images --- */}
           <div className="sm:col-span-2">
@@ -641,6 +734,35 @@ export default function OwnerDashboard() {
                     className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
                   />
                 </div>
+                {(estCourtier || estAgence) && (
+                  <div className="sm:col-span-2 rounded-md border border-[var(--color-line)] bg-[var(--color-paper-2)] p-3">
+                    <p className="mb-2 text-[11px] font-medium text-[var(--color-ink-2)]">
+                      Mandat (optionnel)
+                    </p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">
+                          Nom du propriétaire mandant
+                        </label>
+                        <input
+                          value={editForm.mandant_nom}
+                          onChange={(e) => setEditForm({ ...editForm, mandant_nom: e.target.value })}
+                          className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">
+                          Téléphone du mandant
+                        </label>
+                        <input
+                          value={editForm.mandant_telephone}
+                          onChange={(e) => setEditForm({ ...editForm, mandant_telephone: e.target.value })}
+                          className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2 sm:col-span-2">
                   <button
                     type="submit"

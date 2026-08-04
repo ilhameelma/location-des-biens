@@ -1,15 +1,21 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Home, Building2, Users, Key, ArrowLeft } from "lucide-react";
+import { Home, Building2, Users, Key, HardHat, Handshake, ArrowLeft } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import type { Role } from "../types";
 import logo from "../assets/logo_immo1.png";
 
 const ROLE_CARDS: { role: Role; label: string; icon: typeof Home }[] = [
   { role: "client", label: "Client", icon: Key },
-  { role: "proprietaire", label: "Propriétaire", icon: Building2 },
+  { role: "proprietaire", label: "Propriétaire", icon: Home },
+  { role: "agence", label: "Agence immobilière", icon: Building2 },
+  { role: "promoteur", label: "Promoteur immobilier", icon: HardHat },
+  { role: "courtier", label: "Courtier (Samsar)", icon: Handshake },
   { role: "admin", label: "Administrateur", icon: Users },
 ];
+
+// Rôles professionnels nécessitant des champs d'inscription supplémentaires.
+const ROLES_PRO: Role[] = ["agence", "promoteur", "courtier"];
 
 export default function LoginPage() {
   const { login, register } = useAuth();
@@ -27,8 +33,14 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [telephone, setTelephone] = useState("");
+  const [raisonSociale, setRaisonSociale] = useState("");
+  const [numeroRc, setNumeroRc] = useState("");
+  const [numeroCartePro, setNumeroCartePro] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  const estPro = ROLES_PRO.includes(role);
+  const raisonSocialeObligatoire = role === "agence" || role === "promoteur";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +50,17 @@ export default function LoginPage() {
       const user =
         mode === "login"
           ? await login(email, password)
-          : await register({ nom, prenom, email, password, telephone, role });
+          : await register({
+              nom,
+              prenom,
+              email,
+              password,
+              telephone,
+              role,
+              raison_sociale: estPro ? raisonSociale : undefined,
+              numero_rc: estPro ? numeroRc : undefined,
+              numero_carte_pro: role === "courtier" ? numeroCartePro : undefined,
+            });
       navigate(`/${user.role}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Une erreur est survenue");
@@ -48,7 +70,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-ink)] px-4">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--color-ink)] px-4 py-10">
       <div className="w-full max-w-md">
         <Link
           to="/"
@@ -105,7 +127,9 @@ export default function LoginPage() {
                     }`}
                   >
                     <c.icon size={16} className="text-[var(--color-ink)]" />
-                    <span className="text-[11px] font-medium text-[var(--color-ink)]">{c.label}</span>
+                    <span className="text-[11px] font-medium leading-tight text-[var(--color-ink)]">
+                      {c.label}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -137,6 +161,44 @@ export default function LoginPage() {
                 onChange={(e) => setTelephone(e.target.value)}
                 className="mb-3 w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
               />
+
+              {estPro && (
+                <div className="mb-3 rounded-md border border-[var(--color-line)] bg-[var(--color-paper-2)] p-3">
+                  <p className="mb-2 text-[11px] font-medium text-[var(--color-ink-2)]">
+                    Informations professionnelles
+                  </p>
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">
+                    {role === "promoteur" ? "Raison sociale (société de promotion)" : "Raison sociale (nom de l'agence)"}
+                    {raisonSocialeObligatoire && " *"}
+                  </label>
+                  <input
+                    required={raisonSocialeObligatoire}
+                    value={raisonSociale}
+                    onChange={(e) => setRaisonSociale(e.target.value)}
+                    className="mb-2 w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                  />
+                  <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">
+                    {role === "promoteur" ? "N° registre de commerce / agrément (optionnel)" : "N° registre de commerce (optionnel)"}
+                  </label>
+                  <input
+                    value={numeroRc}
+                    onChange={(e) => setNumeroRc(e.target.value)}
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                  />
+                  {role === "courtier" && (
+                    <>
+                      <label className="mb-1 mt-2 block text-xs font-medium text-[var(--color-ink-2)]">
+                        N° de carte professionnelle (optionnel)
+                      </label>
+                      <input
+                        value={numeroCartePro}
+                        onChange={(e) => setNumeroCartePro(e.target.value)}
+                        className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
+                      />
+                    </>
+                  )}
+                </div>
+              )}
             </>
           )}
 

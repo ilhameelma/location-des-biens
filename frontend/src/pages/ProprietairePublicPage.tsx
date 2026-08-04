@@ -4,6 +4,7 @@ import { ArrowLeft, Star, Home, CalendarDays } from "lucide-react";
 import PropertyCard from "../components/ui/PropertyCard";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { labelAnnonceur } from "../lib/roles";
 import type { Bien, Conversation, ProprietairePublic } from "../types";
 
 function formatMembreDepuis(dateIso: string): string {
@@ -126,9 +127,12 @@ export default function ProprietairePublicPage() {
           </div>
           <div>
             <h1 className="font-display text-xl text-[var(--color-ink)]">
-              {profil.prenom} {profil.nom}
+              {profil.raison_sociale || `${profil.prenom} ${profil.nom}`}
             </h1>
-            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--color-ink-3)]">
+            <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-[var(--color-ink-3)]">
+              <span className="rounded-full bg-[var(--color-paper-2)] px-2 py-0.5 font-medium text-[var(--color-ink-2)]">
+                {labelAnnonceur(profil.role)}
+              </span>
               <CalendarDays size={12} />
               Membre depuis {formatMembreDepuis(profil.date_creation)}
             </p>
@@ -158,12 +162,12 @@ export default function ProprietairePublicPage() {
       {/* Annonces du propriétaire */}
       <div className="mt-8">
         <h2 className="font-display text-lg text-[var(--color-ink)]">
-          Annonces de {profil.prenom} ({biens.length})
+          Annonces de {profil.raison_sociale || profil.prenom} ({biens.length})
         </h2>
 
         {biens.length === 0 ? (
           <p className="mt-4 text-sm text-[var(--color-ink-3)]">
-            Ce propriétaire n'a aucune annonce disponible pour le moment.
+            Cet annonceur n'a aucune annonce disponible pour le moment.
           </p>
         ) : (
           <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">

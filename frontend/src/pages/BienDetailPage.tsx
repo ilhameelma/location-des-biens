@@ -18,6 +18,7 @@ import NearbyPlaces from "../components/map/NearbyPlaces";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { emitFavorisChanged } from "../lib/favorisEvents";
+import { ROLES_ANNONCEURS, labelAnnonceur } from "../lib/roles";
 import type { Bien, Conversation } from "../types";
 
 const TYPE_LABELS: Record<string, string> = {
@@ -239,6 +240,16 @@ export default function BienDetailPage() {
                   <Tag size={11} />
                   {isVente ? "À vendre" : "À louer"}
                 </span>
+                {bien.mandant_nom && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-paper-2)] px-2.5 py-1 text-xs font-medium text-[var(--color-ink-2)]">
+                    Sous mandat
+                  </span>
+                )}
+                {bien.projet_id && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-paper-2)] px-2.5 py-1 text-xs font-medium text-[var(--color-ink-2)]">
+                    Projet neuf
+                  </span>
+                )}
               </div>
               {user?.role === "client" && (
                 <button
@@ -283,10 +294,10 @@ export default function BienDetailPage() {
               {!isVente && <span className="ml-1 text-sm text-[var(--color-ink-3)]">/ mois</span>}
             </div>
 
-            {/* Publié par — lien vers la fiche profil publique du propriétaire
+            {/* Publié par — lien vers la fiche profil publique de l'annonceur
                 (ses autres annonces + note moyenne), masqué si le visiteur
-                est le propriétaire lui-même (il a déjà "Gérer cette annonce"). */}
-            {!(user?.role === "proprietaire" && bien.proprietaire_id === user.id) && (
+                est l'annonceur lui-même (il a déjà "Gérer cette annonce"). */}
+            {!(user && ROLES_ANNONCEURS.includes(user.role) && bien.proprietaire_id === user.id) && (
               <Link
                 to={`/proprietaires/${bien.proprietaire_id}`}
                 className="mt-4 flex items-center justify-between gap-2 rounded-md border border-[var(--color-line)] px-3 py-2.5 text-sm transition-colors hover:border-[var(--color-brass)]"
@@ -294,7 +305,11 @@ export default function BienDetailPage() {
                 <span className="text-[var(--color-ink-3)]">
                   Publié par{" "}
                   <span className="font-medium text-[var(--color-ink)]">
-                    {bien.proprietaire_prenom ?? "ce"} {bien.proprietaire_nom ?? "propriétaire"}
+                    {bien.proprietaire_raison_sociale ||
+                      `${bien.proprietaire_prenom ?? "ce"} ${bien.proprietaire_nom ?? "propriétaire"}`}
+                  </span>
+                  <span className="ml-1 text-xs text-[var(--color-ink-3)]">
+                    ({labelAnnonceur(bien.proprietaire_role)})
                   </span>
                 </span>
                 <span className="whitespace-nowrap text-xs font-medium text-[var(--color-brass-deep)]">
@@ -338,9 +353,9 @@ export default function BienDetailPage() {
               </div>
             )}
 
-            {user?.role === "proprietaire" && bien.proprietaire_id === user.id && (
+            {user && ROLES_ANNONCEURS.includes(user.role) && bien.proprietaire_id === user.id && (
               <Link
-                to="/proprietaire"
+                to={`/${user.role}`}
                 className="mt-5 flex items-center justify-center gap-2 rounded-md border border-dashed border-[var(--color-line)] py-2.5 text-sm font-medium text-[var(--color-ink-2)] hover:border-[var(--color-brass)] hover:text-[var(--color-brass-deep)]"
               >
                 Gérer cette annonce

@@ -18,6 +18,9 @@ import OwnerPaiementsPage from "./pages/proprietaire/OwnerPaiementsPage";
 import OwnerMessagesPage from "./pages/proprietaire/OwnerMessagesPage";
 import OwnerAvisPage from "./pages/proprietaire/AvisPage";
 
+import ProjetsPage from "./pages/promoteur/ProjetsPage";
+import ProjetDetailPage from "./pages/promoteur/ProjetDetailPage";
+
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import UtilisateursPage from "./pages/admin/UtilisateursPage";
 import AnnoncesPage from "./pages/admin/AnnoncesPage";
@@ -52,13 +55,42 @@ export default function App() {
           <Route path="/proprietaire/messages" element={<ProtectedRoute role="proprietaire"><OwnerMessagesPage /></ProtectedRoute>} />
           <Route path="/proprietaire/avis" element={<ProtectedRoute role="proprietaire"><OwnerAvisPage /></ProtectedRoute>} />
 
-          {/* Fiche détaillée d'une annonce — accessible aux 3 rôles (client, propriétaire, admin) */}
+          {/* Espace Agence immobilière — mêmes écrans que Propriétaire (biens,
+              demandes, paiements, messages, avis), génériques sur le rôle
+              connecté ; seul le formulaire de publication change (champs
+              mandant optionnels, voir OwnerDashboard.tsx). */}
+          <Route path="/agence" element={<ProtectedRoute role="agence"><OwnerDashboard /></ProtectedRoute>} />
+          <Route path="/agence/demandes" element={<ProtectedRoute role="agence"><DemandesPage /></ProtectedRoute>} />
+          <Route path="/agence/paiements" element={<ProtectedRoute role="agence"><OwnerPaiementsPage /></ProtectedRoute>} />
+          <Route path="/agence/messages" element={<ProtectedRoute role="agence"><OwnerMessagesPage /></ProtectedRoute>} />
+          <Route path="/agence/avis" element={<ProtectedRoute role="agence"><OwnerAvisPage /></ProtectedRoute>} />
+
+          {/* Espace Courtier (Samsar) — idem, formulaire de publication avec
+              mandant_nom obligatoire (voir OwnerDashboard.tsx). */}
+          <Route path="/courtier" element={<ProtectedRoute role="courtier"><OwnerDashboard /></ProtectedRoute>} />
+          <Route path="/courtier/demandes" element={<ProtectedRoute role="courtier"><DemandesPage /></ProtectedRoute>} />
+          <Route path="/courtier/paiements" element={<ProtectedRoute role="courtier"><OwnerPaiementsPage /></ProtectedRoute>} />
+          <Route path="/courtier/messages" element={<ProtectedRoute role="courtier"><OwnerMessagesPage /></ProtectedRoute>} />
+          <Route path="/courtier/avis" element={<ProtectedRoute role="courtier"><OwnerAvisPage /></ProtectedRoute>} />
+
+          {/* Espace Promoteur immobilier — "Mes biens" liste tous les lots
+              (lecture/édition/suppression) mais la publication se fait
+              exclusivement depuis un projet (Mes projets → lot). */}
+          <Route path="/promoteur" element={<ProtectedRoute role="promoteur"><OwnerDashboard /></ProtectedRoute>} />
+          <Route path="/promoteur/projets" element={<ProtectedRoute role="promoteur"><ProjetsPage /></ProtectedRoute>} />
+          <Route path="/promoteur/projets/:id" element={<ProtectedRoute role="promoteur"><ProjetDetailPage /></ProtectedRoute>} />
+          <Route path="/promoteur/demandes" element={<ProtectedRoute role="promoteur"><DemandesPage /></ProtectedRoute>} />
+          <Route path="/promoteur/paiements" element={<ProtectedRoute role="promoteur"><OwnerPaiementsPage /></ProtectedRoute>} />
+          <Route path="/promoteur/messages" element={<ProtectedRoute role="promoteur"><OwnerMessagesPage /></ProtectedRoute>} />
+          <Route path="/promoteur/avis" element={<ProtectedRoute role="promoteur"><OwnerAvisPage /></ProtectedRoute>} />
+
+          {/* Fiche détaillée d'une annonce — accessible aux rôles connectés (client, tous les annonceurs, admin) */}
           <Route path="/biens/:id" element={<ProtectedRoute><BienDetailPage /></ProtectedRoute>} />
 
-          {/* Fiche profil publique d'un propriétaire (ses annonces + note moyenne) — accessible aux 3 rôles */}
+          {/* Fiche profil publique d'un annonceur (ses annonces + note moyenne) — accessible à tous */}
           <Route path="/proprietaires/:id" element={<ProtectedRoute><ProprietairePublicPage /></ProtectedRoute>} />
 
-          {/* Mon compte — accessible aux 3 rôles (client, propriétaire, admin) */}
+          {/* Mon compte — accessible à tous les rôles connectés */}
           <Route path="/compte" element={<ProtectedRoute><ComptePage /></ProtectedRoute>} />
 
           {/* Espace Admin */}

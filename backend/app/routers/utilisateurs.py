@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from .. import models, schemas
 from ..database import get_db
-from ..deps import require_role
+from ..deps import ROLES_ANNONCEURS, require_role
 
 router = APIRouter(prefix="/utilisateurs", tags=["utilisateurs"])
 
@@ -20,7 +20,7 @@ def profil_public_proprietaire(utilisateur_id: uuid.UUID, db: Session = Depends(
     exposer de donnée sensible (email, téléphone).
     """
     user = db.get(models.Utilisateur, utilisateur_id)
-    if not user or user.role != "proprietaire":
+    if not user or user.role not in ROLES_ANNONCEURS:
         raise HTTPException(status_code=404, detail="Propriétaire introuvable")
 
     nb_biens_actifs = (
@@ -40,6 +40,8 @@ def profil_public_proprietaire(utilisateur_id: uuid.UUID, db: Session = Depends(
         id=user.id,
         nom=user.nom,
         prenom=user.prenom,
+        role=user.role,
+        raison_sociale=user.raison_sociale,
         date_creation=user.date_creation,
         nb_biens_actifs=nb_biens_actifs,
         note_moyenne=round(float(note_moyenne), 1) if note_moyenne is not None else None,

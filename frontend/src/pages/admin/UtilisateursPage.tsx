@@ -2,13 +2,8 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, Clock, Trash2, XCircle } from "lucide-react";
 import { api } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
+import { ROLE_LABELS } from "../../lib/roles";
 import type { Utilisateur } from "../../types";
-
-const ROLE_LABEL: Record<string, string> = {
-  proprietaire: "Propriétaire",
-  client: "Client",
-  admin: "Admin",
-};
 
 export default function UtilisateursPage() {
   const { user: currentUser } = useAuth();
@@ -89,7 +84,7 @@ export default function UtilisateursPage() {
                     {u.prenom} {u.nom}
                   </td>
                   <td className="px-4 py-3 text-[var(--color-ink-2)]">{u.email}</td>
-                  <td className="px-4 py-3 text-[var(--color-ink-2)]">{ROLE_LABEL[u.role]}</td>
+                  <td className="px-4 py-3 text-[var(--color-ink-2)]">{ROLE_LABELS[u.role]}</td>
                   <td className="px-4 py-3">
                     {u.statut_verification === "verifie" && (
                       <span className="inline-flex items-center gap-1 text-[var(--color-sage)]">

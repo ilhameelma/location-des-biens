@@ -8,6 +8,19 @@ from . import models
 from .database import get_db
 from .security import decode_access_token
 
+# Rôles pouvant publier/gérer des annonces (biens) et donc accéder aux
+# endpoints "espace annonceur" (mes biens, demandes reçues, paiements reçus,
+# messagerie, avis clients, profil public). `proprietaire` reste le rôle
+# historique ; les 3 autres sont les profils professionnels ajoutés
+# ultérieurement (voir README_ROLES_PROFESSIONNELS.md) :
+#   - agence     : agence immobilière (peut publier pour son propre compte
+#                  ou pour le compte d'un tiers via mandant_nom/téléphone)
+#   - promoteur  : promoteur immobilier — publie exclusivement des lots
+#                  rattachés à un projet immobilier (voir routers/projets.py)
+#   - courtier   : courtier / "samsar" — publie obligatoirement au nom d'un
+#                  propriétaire tiers (mandant_nom requis)
+ROLES_ANNONCEURS = ("proprietaire", "agence", "promoteur", "courtier")
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 # auto_error=False : ne lève jamais d'exception si l'en-tête Authorization est
