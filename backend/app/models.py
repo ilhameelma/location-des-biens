@@ -24,6 +24,11 @@ class Utilisateur(Base):
     # admin | client | proprietaire | agence | promoteur | courtier
     role: Mapped[str] = mapped_column(String(20))
     statut_verification: Mapped[str] = mapped_column(String(20), default="en_attente")  # en_attente|verifie|rejete
+    # Vérification de l'email à l'inscription (indépendante de statut_verification
+    # ci-dessus, qui est la vérification "métier" du profil par un admin).
+    email_verifie: Mapped[bool] = mapped_column(default=False)
+    email_verification_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email_verification_expire: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Champs professionnels (NULL pour client/admin/proprietaire particulier)
     raison_sociale: Mapped[str | None] = mapped_column(String(150), nullable=True)
     numero_rc: Mapped[str | None] = mapped_column(String(50), nullable=True)

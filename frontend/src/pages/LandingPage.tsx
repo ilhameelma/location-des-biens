@@ -21,12 +21,17 @@ import {
   CheckCircle2,
   Lock,
   ImageIcon,
+  Landmark,
+  BadgeDollarSign,
+  Handshake,
+  UserCog,
 } from "lucide-react";
 import { api } from "../lib/api";
 import type { Bien } from "../types";
 import { resolvePhotoUrl } from "../components/ui/ImageCarousel";
+import { CONTACT_EMAIL } from "../components/layout/Footer";
 import logo from "../assets/logo_immo1.png";
-import hero from "../assets/hero.png";
+import hero from "../assets/home6.png";
 
 // Arc en fer à cheval (référence à l'architecture marocaine) utilisé comme
 // signature visuelle pour les images de la page — rayon horizontal large,
@@ -89,17 +94,32 @@ const ACTORS = [
   {
     icon: Key,
     role: "Client",
-    text: "Recherche un bien, filtre selon ses critères, réserve, signe le contrat, paie en ligne et évalue le propriétaire.",
+    text: "Recherche un bien immobilier, applique des filtres, réserve, signe son contrat, effectue ses paiements et échange avec les propriétaires.",
   },
   {
     icon: Building2,
     role: "Propriétaire",
-    text: "Publie et gère ses biens, reçoit les demandes de réservation, communique avec ses locataires et suit ses paiements.",
+    text: "Publie ses biens (maison, appartement, magasin, garage...), gère ses annonces, reçoit les demandes et suit ses revenus.",
   },
   {
-    icon: Users,
+    icon: Landmark,
+    role: "Agence immobilière",
+    text: "Gère un portefeuille de biens, accompagne les clients dans leurs recherches et assure la mise en relation entre propriétaires et locataires.",
+  },
+  {
+    icon: BadgeDollarSign,
+    role: "Promoteur immobilier",
+    text: "Présente ses projets immobiliers neufs, commercialise ses biens et suit les demandes des acheteurs ou locataires.",
+  },
+  {
+    icon: Handshake,
+    role: "Courtier (Samsar)",
+    text: "Facilite les transactions immobilières, met en relation les parties et accompagne les clients dans leurs démarches.",
+  },
+  {
+    icon: UserCog,
     role: "Administrateur",
-    text: "Vérifie les comptes propriétaires, modère les annonces signalées et garde une vue d'ensemble de la plateforme.",
+    text: "Contrôle les utilisateurs, valide les comptes professionnels, supervise les annonces et garantit la sécurité de la plateforme.",
   },
 ];
 
@@ -302,7 +322,7 @@ export default function LandingPage() {
 
       {/* ================= HERO ================= */}
       <section id="top" className="mx-auto max-w-6xl px-6 pb-20 pt-16 md:pt-24">
-        <div className="grid items-center gap-12 md:grid-cols-2">
+        <div className="grid items-center gap-1 md:grid-cols-2">
           <div>
             <span className="tick-rule mb-2 inline-block font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-brass-deep)]">
               Location immobilière au Maroc
@@ -366,7 +386,7 @@ export default function LandingPage() {
               <img
                 src={hero}
                 alt="Bien immobilier proposé sur ImmoVision"
-                className="h-[420px] w-full object-cover sm:h-[480px]"
+                className="w-full h-full object-cover"
               />
             </div>
           </div>
@@ -467,7 +487,7 @@ export default function LandingPage() {
                 Une plateforme pensée pour le marché locatif marocain
               </h2>
               <p className="mt-5 text-sm leading-relaxed text-[var(--color-ink-2)]">
-                ImmoVision (projet SmartRent) va au-delà d'un simple site d'annonces : la
+                ImmoVision L'intelligence au service de l'immobilier va au-delà d'un simple site d'annonces : la
                 gestion des contrats, des paiements et de la messagerie est intégrée
                 nativement, et chaque interaction — annonce, réservation, paiement —
                 alimente un pipeline de données qui affine en continu nos modèles
@@ -526,7 +546,7 @@ export default function LandingPage() {
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-brass-bg)] text-[var(--color-brass-deep)]">
                   <Mail size={17} />
                 </span>
-                contact@immovision.ma
+                immovision260@gmail.com
               </a>
               <a
                 href="tel:+212500000000"
@@ -619,7 +639,14 @@ export default function LandingPage() {
             </nav>
           </div>
           <div className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-6 text-xs sm:flex-row sm:items-center sm:justify-between">
-            <span>© {new Date().getFullYear()} ImmoVision — Projet SmartRent, Data Engineering.</span>
+            <span>© {new Date().getFullYear()} ImmoVision L'intelligence au service de l'immobilier.</span>
+            <a
+              href={`mailto:${CONTACT_EMAIL}`}
+              className="flex items-center gap-1.5 transition-colors hover:text-white"
+            >
+              <Mail size={13} />
+              {CONTACT_EMAIL}
+            </a>
             <span>Données personnelles traitées conformément à la loi 09-08.</span>
           </div>
         </div>

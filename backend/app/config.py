@@ -42,6 +42,18 @@ class Settings(BaseSettings):
     smtp_from: str = "SmartRent <no-reply@smartrent.local>"
     smtp_use_tls: bool = True
 
+    # ============================================================
+    # Vérification d'email à l'inscription
+    # ============================================================
+    # Durée de validité du lien de confirmation envoyé par email.
+    email_verification_expire_heures: int = 24
+    # URL du front-end (React) utilisée pour construire le lien cliqué dans
+    # l'email : {frontend_url}/verify-email?token=... — distincte de
+    # frontend_origin (CORS) même si elles pointent vers la même adresse en
+    # local, car frontend_origin ne doit contenir aucune barre oblique finale
+    # ni servir à autre chose qu'à la configuration CORS.
+    frontend_url: str = "http://localhost:5173"
+
     # Firebase Cloud Messaging (push mobile/navigateur) : nécessite un flux
     # d'enregistrement de token d'appareil côté client (app mobile ou
     # service worker web) qui n'existe pas encore dans ce projet.

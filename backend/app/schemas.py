@@ -51,6 +51,12 @@ class RegisterRequest(BaseModel):
 
     @model_validator(mode="after")
     def _valider_champs_professionnels(self):
+        # Le rôle "admin" ne doit jamais pouvoir être créé via l'inscription
+        # publique (front-end ou appel direct à l'API) — seuls les comptes
+        # admin déjà existants en base peuvent se connecter.
+        if self.role == "admin":
+            raise ValueError("Le rôle Administrateur ne peut pas être choisi à l'inscription.")
+
         if self.role in _ROLES_RAISON_SOCIALE_OBLIGATOIRE and not (
             self.raison_sociale and self.raison_sociale.strip()
         ):
@@ -71,10 +77,26 @@ class UtilisateurOut(BaseModel):
     telephone: Optional[str] = None
     role: Role
     statut_verification: StatutVerification
+    email_verifie: bool
     raison_sociale: Optional[str] = None
     numero_rc: Optional[str] = None
     numero_carte_pro: Optional[str] = None
     date_creation: datetime
+
+
+class RegisterResponse(BaseModel):
+    """Réponse de POST /auth/register : pas de token — le compte doit d'abord
+    être confirmé par email avant de pouvoir se connecter."""
+    message: str
+    email: EmailStr
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationRequest(BaseModel):
+    email: EmailStr
 
 
 class UtilisateurUpdate(BaseModel):

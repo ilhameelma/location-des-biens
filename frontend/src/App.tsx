@@ -3,6 +3,7 @@ import { AuthProvider } from "./lib/auth";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
+import VerifyEmailPage from "./pages/VerifyEmailPage";
 
 import SearchPage from "./pages/client/SearchPage";
 import ReservationsPage from "./pages/client/ReservationsPage";
@@ -38,6 +39,8 @@ export default function App() {
           {/* Page d'accueil publique — accessible à tout visiteur, avant connexion/inscription */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
+          {/* Lien cliqué depuis l'email de confirmation d'inscription */}
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
 
           {/* Espace Client */}
           <Route path="/client" element={<ProtectedRoute role="client"><SearchPage /></ProtectedRoute>} />

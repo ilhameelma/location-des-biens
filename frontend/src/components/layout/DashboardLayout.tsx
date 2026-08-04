@@ -22,6 +22,7 @@ import { useAuth } from "../../lib/auth";
 import { useFavorisCount } from "../../lib/useFavorisCount";
 import type { Role } from "../../types";
 import NotificationBell from "./NotificationBell";
+import Footer from "./Footer";
 import logo from "../../assets/logo_immo1.png";
 
 interface NavItem {
@@ -209,7 +210,7 @@ export default function DashboardLayout({
 
       {/* ================= CONTENU ================= */}
 
-      <div className="flex-1">
+      <div className="flex flex-1 flex-col">
 
         <header className="flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-card)] px-8 py-4">
 
@@ -237,9 +238,11 @@ export default function DashboardLayout({
 
         </header>
 
-        <main className="p-8">
+        <main className="flex-1 p-8">
           {children}
         </main>
+
+        <Footer />
 
       </div>
 

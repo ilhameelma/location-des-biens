@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Home, Building2, Users, Key, HardHat, Handshake, ArrowLeft } from "lucide-react";
+import { Home, Building2, Key, HardHat, Handshake, ArrowLeft } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import type { Role } from "../types";
+import Footer from "../components/layout/Footer";
 import logo from "../assets/logo_immo1.png";
 
 const ROLE_CARDS: { role: Role; label: string; icon: typeof Home }[] = [
@@ -11,14 +12,17 @@ const ROLE_CARDS: { role: Role; label: string; icon: typeof Home }[] = [
   { role: "agence", label: "Agence immobilière", icon: Building2 },
   { role: "promoteur", label: "Promoteur immobilier", icon: HardHat },
   { role: "courtier", label: "Courtier (Samsar)", icon: Handshake },
-  { role: "admin", label: "Administrateur", icon: Users },
+  // "admin" volontairement absent : le rôle Administrateur ne doit jamais
+  // pouvoir être créé depuis le formulaire d'inscription public. Le compte
+  // admin existe déjà en base ; la connexion (onglet "Connexion") reste
+  // inchangée pour ce rôle.
 ];
 
 // Rôles professionnels nécessitant des champs d'inscription supplémentaires.
 const ROLES_PRO: Role[] = ["agence", "promoteur", "courtier"];
 
 export default function LoginPage() {
-  const { login, register } = useAuth();
+  const { login, register, resendVerification } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -38,6 +42,13 @@ export default function LoginPage() {
   const [numeroCartePro, setNumeroCartePro] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // Affiché après inscription réussie : le compte doit être confirmé par email
+  // avant de pouvoir se connecter, donc pas de redirection automatique.
+  const [inscriptionEnAttente, setInscriptionEnAttente] = useState<string | null>(null);
+  // Vrai quand /auth/login échoue précisément parce que l'email n'est pas
+  // confirmé (403 côté back-end) — propose alors de renvoyer le lien.
+  const [emailNonConfirme, setEmailNonConfirme] = useState(false);
+  const [renvoiEnvoye, setRenvoiEnvoye] = useState(false);
 
   const estPro = ROLES_PRO.includes(role);
   const raisonSocialeObligatoire = role === "agence" || role === "promoteur";
@@ -45,25 +56,46 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setEmailNonConfirme(false);
+    setRenvoiEnvoye(false);
     setLoading(true);
     try {
-      const user =
-        mode === "login"
-          ? await login(email, password)
-          : await register({
-              nom,
-              prenom,
-              email,
-              password,
-              telephone,
-              role,
-              raison_sociale: estPro ? raisonSociale : undefined,
-              numero_rc: estPro ? numeroRc : undefined,
-              numero_carte_pro: role === "courtier" ? numeroCartePro : undefined,
-            });
-      navigate(`/${user.role}`);
+      if (mode === "register") {
+        const res = await register({
+          nom,
+          prenom,
+          email,
+          password,
+          telephone,
+          role,
+          raison_sociale: estPro ? raisonSociale : undefined,
+          numero_rc: estPro ? numeroRc : undefined,
+          numero_carte_pro: role === "courtier" ? numeroCartePro : undefined,
+        });
+        setInscriptionEnAttente(res.email);
+      } else {
+        const user = await login(email, password);
+        navigate(`/${user.role}`);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Une erreur est survenue");
+      const message = err instanceof Error ? err.message : "Une erreur est survenue";
+      setError(message);
+      if (mode === "login" && message.toLowerCase().includes("non confirmée")) {
+        setEmailNonConfirme(true);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRenvoyerConfirmation = async () => {
+    setLoading(true);
+    try {
+      await resendVerification(email);
+      setRenvoiEnvoye(true);
+    } catch {
+      // best-effort : même en cas d'échec réseau, on ne bloque pas l'utilisateur
+      setRenvoiEnvoye(true);
     } finally {
       setLoading(false);
     }
@@ -80,6 +112,45 @@ export default function LoginPage() {
           Retour à l'accueil
         </Link>
 
+        {inscriptionEnAttente ? (
+          <div className="rounded-lg bg-[var(--color-card)] p-8 text-center shadow-xl">
+            <div className="mb-6 flex justify-center">
+              <img src={logo} alt="ImmoVision" className="h-24 w-auto object-contain" />
+            </div>
+            <h2 className="mb-2 text-base font-semibold text-[var(--color-ink)]">
+              Vérifiez votre boîte email
+            </h2>
+            <p className="mb-5 text-sm text-[var(--color-ink-2)]">
+              Un email de confirmation a été envoyé à{" "}
+              <span className="font-medium text-[var(--color-ink)]">{inscriptionEnAttente}</span>.
+              Cliquez sur le lien qu'il contient pour activer votre compte (pensez à vérifier vos
+              spams).
+            </p>
+            {renvoiEnvoye && (
+              <p className="mb-3 text-xs text-[var(--color-brass-deep)]">
+                Un nouvel email vient d'être envoyé.
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={handleRenvoyerConfirmation}
+              disabled={loading}
+              className="mb-3 w-full rounded-md border border-[var(--color-line)] py-2.5 text-sm font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-paper-2)] disabled:opacity-60"
+            >
+              Renvoyer l'email de confirmation
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setInscriptionEnAttente(null);
+                setMode("login");
+              }}
+              className="w-full rounded-md bg-[var(--color-brass)] py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-deep)]"
+            >
+              Retour à la connexion
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="rounded-lg bg-[var(--color-card)] p-8 shadow-xl">
           {/* Logo */}
 
@@ -223,6 +294,16 @@ export default function LoginPage() {
           {error && (
             <div className="mb-4 rounded-md bg-[var(--color-rust-bg)] px-3 py-2 text-xs text-[var(--color-rust)]">
               {error}
+              {emailNonConfirme && (
+                <button
+                  type="button"
+                  onClick={handleRenvoyerConfirmation}
+                  disabled={loading}
+                  className="mt-2 block font-medium underline disabled:opacity-60"
+                >
+                  {renvoiEnvoye ? "Email renvoyé ✓" : "Renvoyer l'email de confirmation"}
+                </button>
+              )}
             </div>
           )}
 
@@ -234,6 +315,11 @@ export default function LoginPage() {
             {loading ? "Chargement…" : mode === "login" ? "Se connecter" : "Créer mon compte"}
           </button>
         </form>
+        )}
+
+        <div className="mt-6">
+          <Footer variant="dark" />
+        </div>
       </div>
     </div>
   );

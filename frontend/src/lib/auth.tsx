@@ -25,11 +25,18 @@ interface ProfileUpdatePayload {
   telephone?: string;
 }
 
+interface RegisterResponse {
+  message: string;
+  email: string;
+}
+
 interface AuthContextValue {
   user: Utilisateur | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<Utilisateur>;
-  register: (payload: RegisterPayload) => Promise<Utilisateur>;
+  register: (payload: RegisterPayload) => Promise<RegisterResponse>;
+  resendVerification: (email: string) => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
   logout: () => void;
   updateProfile: (payload: ProfileUpdatePayload) => Promise<Utilisateur>;
   changePassword: (motDePasseActuel: string, nouveauMotDePasse: string) => Promise<void>;
@@ -68,9 +75,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const register = async (payload: RegisterPayload) => {
-    await api.post<Utilisateur>("/auth/register", payload, { auth: false });
-    // L'inscription ne renvoie pas de token : on enchaîne avec un login.
-    return login(payload.email, payload.password);
+    // L'inscription ne renvoie plus de token ni de connexion automatique :
+    // le compte doit d'abord être confirmé via le lien reçu par email.
+    return api.post<RegisterResponse>("/auth/register", payload, { auth: false });
+  };
+
+  const resendVerification = async (email: string) => {
+    await api.post<void>("/auth/resend-verification", { email }, { auth: false });
+  };
+
+  const verifyEmail = async (token: string) => {
+    await api.get<Utilisateur>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
   };
 
   const logout = () => {
@@ -96,7 +111,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, login, register, logout, updateProfile, changePassword }}
+      value={{
+        user,
+        loading,
+        login,
+        register,
+        resendVerification,
+        verifyEmail,
+        logout,
+        updateProfile,
+        changePassword,
+      }}
     >
       {children}
     </AuthContext.Provider>

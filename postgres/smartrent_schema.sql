@@ -24,6 +24,13 @@ CREATE TABLE utilisateur (
                         CHECK (role IN ('admin', 'proprietaire', 'client', 'agence', 'promoteur', 'courtier')),
     statut_verification VARCHAR(20) NOT NULL DEFAULT 'en_attente'
                         CHECK (statut_verification IN ('en_attente', 'verifie', 'rejete')),
+    -- Vérification de l'email à l'inscription : un compte nouvellement créé
+    -- ne peut pas se connecter tant que le lien reçu par email n'a pas été
+    -- cliqué. Indépendant de statut_verification ci-dessus, qui concerne la
+    -- vérification "métier" du profil professionnel par un admin.
+    email_verifie                BOOLEAN NOT NULL DEFAULT false,
+    email_verification_token     VARCHAR(255),
+    email_verification_expire    TIMESTAMP,
     -- Champs professionnels (NULL pour client/admin/proprietaire particulier) :
     raison_sociale      VARCHAR(150),  -- nom de la société — obligatoire pour agence/promoteur
     numero_rc           VARCHAR(50),   -- registre de commerce / agrément promoteur
@@ -31,6 +38,8 @@ CREATE TABLE utilisateur (
     date_creation       TIMESTAMP NOT NULL DEFAULT now(),
     date_maj            TIMESTAMP NOT NULL DEFAULT now()
 );
+
+CREATE INDEX idx_utilisateur_email_verification_token ON utilisateur(email_verification_token);
 
 -- ============================================================
 -- Table : projet_immobilier (promoteur uniquement)

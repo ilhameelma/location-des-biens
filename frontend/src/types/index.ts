@@ -16,6 +16,7 @@ export interface Utilisateur {
   telephone?: string | null;
   role: Role;
   statut_verification: StatutVerification;
+  email_verifie: boolean;
   raison_sociale?: string | null;
   numero_rc?: string | null;
   numero_carte_pro?: string | null;
