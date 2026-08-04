@@ -4,10 +4,10 @@ from typing import Literal, Optional
 
 from pydantic import BaseModel, EmailStr, ConfigDict, Field, model_validator
 
-# Rôles "annonceurs" professionnels (agence/promoteur/courtier), en plus du
+# Rôles "annonceurs" professionnels (agence/promoteur/conciergerie), en plus du
 # propriétaire particulier — voir ROLES_ANNONCEURS dans deps.py pour le
 # groupe utilisé côté contrôle d'accès.
-Role = Literal["admin", "proprietaire", "client", "agence", "promoteur", "courtier"]
+Role = Literal["admin", "proprietaire", "client", "agence", "promoteur", "conciergerie"]
 StatutVerification = Literal["en_attente", "verifie", "rejete"]
 TypeBien = Literal["maison", "appartement", "magasin", "garage", "bureau", "terrain", "villa"]
 TypeTransaction = Literal["location", "vente"]
@@ -43,8 +43,8 @@ class RegisterRequest(BaseModel):
     telephone: Optional[str] = None
     role: Role
     # Champs professionnels — raison_sociale obligatoire pour agence/promoteur
-    # (voir validateur ci-dessous), numero_carte_pro optionnel pour courtier
-    # (un "samsar" n'a pas toujours de carte professionnelle officielle).
+    # (voir validateur ci-dessous), numero_carte_pro optionnel pour conciergerie
+    # (pas toujours de carte professionnelle officielle).
     raison_sociale: Optional[str] = None
     numero_rc: Optional[str] = None
     numero_carte_pro: Optional[str] = None
@@ -139,7 +139,7 @@ class BienCreate(BaseModel):
     # Promoteur uniquement : lot rattaché à un projet (voir routers/projets.py) —
     # requis pour ce rôle, refusé pour les autres (contrôlé côté router).
     projet_id: Optional[uuid.UUID] = None
-    # Courtier (obligatoire) / agence (optionnel) : propriétaire réel du bien.
+    # Conciergerie (obligatoire) / agence (optionnel) : propriétaire réel du bien.
     mandant_nom: Optional[str] = None
     mandant_telephone: Optional[str] = None
 
@@ -197,7 +197,7 @@ class ProprietairePublicOut(BaseModel):
     """Consultable par tout visiteur (ex. lien "Voir le profil" depuis une
     fiche bien) — expose uniquement des informations non sensibles (pas
     d'email, pas de téléphone). Utilisé pour les 4 rôles annonceurs
-    (proprietaire/agence/promoteur/courtier)."""
+    (proprietaire/agence/promoteur/conciergerie)."""
     id: uuid.UUID
     nom: str
     prenom: str

@@ -68,13 +68,13 @@ export default function App() {
           <Route path="/agence/messages" element={<ProtectedRoute role="agence"><OwnerMessagesPage /></ProtectedRoute>} />
           <Route path="/agence/avis" element={<ProtectedRoute role="agence"><OwnerAvisPage /></ProtectedRoute>} />
 
-          {/* Espace Courtier (Samsar) — idem, formulaire de publication avec
+          {/* Espace Conciergerie — idem, formulaire de publication avec
               mandant_nom obligatoire (voir OwnerDashboard.tsx). */}
-          <Route path="/courtier" element={<ProtectedRoute role="courtier"><OwnerDashboard /></ProtectedRoute>} />
-          <Route path="/courtier/demandes" element={<ProtectedRoute role="courtier"><DemandesPage /></ProtectedRoute>} />
-          <Route path="/courtier/paiements" element={<ProtectedRoute role="courtier"><OwnerPaiementsPage /></ProtectedRoute>} />
-          <Route path="/courtier/messages" element={<ProtectedRoute role="courtier"><OwnerMessagesPage /></ProtectedRoute>} />
-          <Route path="/courtier/avis" element={<ProtectedRoute role="courtier"><OwnerAvisPage /></ProtectedRoute>} />
+          <Route path="/conciergerie" element={<ProtectedRoute role="conciergerie"><OwnerDashboard /></ProtectedRoute>} />
+          <Route path="/conciergerie/demandes" element={<ProtectedRoute role="conciergerie"><DemandesPage /></ProtectedRoute>} />
+          <Route path="/conciergerie/paiements" element={<ProtectedRoute role="conciergerie"><OwnerPaiementsPage /></ProtectedRoute>} />
+          <Route path="/conciergerie/messages" element={<ProtectedRoute role="conciergerie"><OwnerMessagesPage /></ProtectedRoute>} />
+          <Route path="/conciergerie/avis" element={<ProtectedRoute role="conciergerie"><OwnerAvisPage /></ProtectedRoute>} />
 
           {/* Espace Promoteur immobilier — "Mes biens" liste tous les lots
               (lecture/édition/suppression) mais la publication se fait

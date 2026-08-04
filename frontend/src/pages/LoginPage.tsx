@@ -11,7 +11,7 @@ const ROLE_CARDS: { role: Role; label: string; icon: typeof Home }[] = [
   { role: "proprietaire", label: "Propriétaire", icon: Home },
   { role: "agence", label: "Agence immobilière", icon: Building2 },
   { role: "promoteur", label: "Promoteur immobilier", icon: HardHat },
-  { role: "courtier", label: "Courtier (Samsar)", icon: Handshake },
+  { role: "conciergerie", label: "Conciergerie", icon: Handshake },
   // "admin" volontairement absent : le rôle Administrateur ne doit jamais
   // pouvoir être créé depuis le formulaire d'inscription public. Le compte
   // admin existe déjà en base ; la connexion (onglet "Connexion") reste
@@ -19,7 +19,7 @@ const ROLE_CARDS: { role: Role; label: string; icon: typeof Home }[] = [
 ];
 
 // Rôles professionnels nécessitant des champs d'inscription supplémentaires.
-const ROLES_PRO: Role[] = ["agence", "promoteur", "courtier"];
+const ROLES_PRO: Role[] = ["agence", "promoteur", "conciergerie"];
 
 export default function LoginPage() {
   const { login, register, resendVerification } = useAuth();
@@ -70,7 +70,7 @@ export default function LoginPage() {
           role,
           raison_sociale: estPro ? raisonSociale : undefined,
           numero_rc: estPro ? numeroRc : undefined,
-          numero_carte_pro: role === "courtier" ? numeroCartePro : undefined,
+          numero_carte_pro: role === "conciergerie" ? numeroCartePro : undefined,
         });
         setInscriptionEnAttente(res.email);
       } else {
@@ -256,7 +256,7 @@ export default function LoginPage() {
                     onChange={(e) => setNumeroRc(e.target.value)}
                     className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
                   />
-                  {role === "courtier" && (
+                  {role === "conciergerie" && (
                     <>
                       <label className="mb-1 mt-2 block text-xs font-medium text-[var(--color-ink-2)]">
                         N° de carte professionnelle (optionnel)

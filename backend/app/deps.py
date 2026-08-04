@@ -17,9 +17,9 @@ from .security import decode_access_token
 #                  ou pour le compte d'un tiers via mandant_nom/téléphone)
 #   - promoteur  : promoteur immobilier — publie exclusivement des lots
 #                  rattachés à un projet immobilier (voir routers/projets.py)
-#   - courtier   : courtier / "samsar" — publie obligatoirement au nom d'un
-#                  propriétaire tiers (mandant_nom requis)
-ROLES_ANNONCEURS = ("proprietaire", "agence", "promoteur", "courtier")
+#   - conciergerie : gère/publie des biens au nom d'un propriétaire tiers
+#                  (mandant_nom généralement renseigné, mais non forcé)
+ROLES_ANNONCEURS = ("proprietaire", "agence", "promoteur", "conciergerie")
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 

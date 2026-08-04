@@ -59,7 +59,7 @@ def register(payload: schemas.RegisterRequest, db: Session = Depends(get_db)):
         raison_sociale=payload.raison_sociale,
         numero_rc=payload.numero_rc,
         numero_carte_pro=payload.numero_carte_pro,
-        # Un propriétaire ou un professionnel (agence/promoteur/courtier) doit
+        # Un propriétaire ou un professionnel (agence/promoteur/conciergerie) doit
         # être vérifié par un admin avant de publier (cf. cahier des charges) ;
         # un client/admin est actif immédiatement — ceci reste indépendant de
         # la vérification d'email ci-dessous, requise pour tous les rôles.

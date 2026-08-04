@@ -16,13 +16,13 @@ export default function OwnerDashboard() {
   // Le formulaire de publication et ses règles changent selon le rôle :
   // - promoteur : ne publie jamais directement ici (un lot doit être rattaché
   //   à un projet — voir /promoteur/projets), donc pas de formulaire du tout.
-  // - courtier  : mandant_nom/téléphone optionnels (bascule "pour le compte d'un tiers").
+  // - conciergerie : mandant_nom/téléphone optionnels (bascule "pour le compte d'un tiers").
   // - agence    : mandant_nom/téléphone optionnels (peut publier pour son
   //   propre compte ou pour le compte d'un tiers).
   // - proprietaire : comportement historique, aucun champ mandant.
   const role = user?.role ?? "proprietaire";
   const estPromoteur = role === "promoteur";
-  const estCourtier = role === "courtier";
+  const estConciergerie = role === "conciergerie";
   const estAgence = role === "agence";
   const [biens, setBiens] = useState<Bien[]>([]);
   const [filtreTransaction, setFiltreTransaction] = useState<"tous" | TypeTransaction>("tous");
@@ -157,10 +157,10 @@ export default function OwnerDashboard() {
         nb_pieces: form.nb_pieces ? Number(form.nb_pieces) : null,
         latitude: form.latitude,
         longitude: form.longitude,
-        // Courtier/agence : envoyés seulement si la bascule "pour le compte
+        // Conciergerie/agence : envoyés seulement si la bascule "pour le compte
         // d'un tiers" est activée — le mandat reste optionnel dans tous les cas.
-        mandant_nom: (estCourtier || estAgence) && pourTiers ? form.mandant_nom : null,
-        mandant_telephone: (estCourtier || estAgence) && pourTiers ? form.mandant_telephone : null,
+        mandant_nom: (estConciergerie || estAgence) && pourTiers ? form.mandant_nom : null,
+        mandant_telephone: (estConciergerie || estAgence) && pourTiers ? form.mandant_telephone : null,
       });
 
       const bienId = bienRes.id;
@@ -271,7 +271,7 @@ export default function OwnerDashboard() {
         prix: Number(editForm.prix),
         superficie: editForm.superficie ? Number(editForm.superficie) : null,
         nb_pieces: editForm.nb_pieces ? Number(editForm.nb_pieces) : null,
-        ...(estCourtier || estAgence
+        ...(estConciergerie || estAgence
           ? {
               mandant_nom: editForm.mandant_nom || null,
               mandant_telephone: editForm.mandant_telephone || null,
@@ -499,8 +499,8 @@ export default function OwnerDashboard() {
             />
           </div>
 
-          {/* --- Mandat (courtier / agence) : toujours optionnel --- */}
-          {(estCourtier || estAgence) && (
+          {/* --- Mandat (conciergerie / agence) : toujours optionnel --- */}
+          {(estConciergerie || estAgence) && (
             <div className="sm:col-span-2 rounded-md border border-[var(--color-line)] bg-[var(--color-paper-2)] p-3">
               <label className="flex items-center gap-2 text-xs font-medium text-[var(--color-ink-2)]">
                 <input
@@ -734,7 +734,7 @@ export default function OwnerDashboard() {
                     className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
                   />
                 </div>
-                {(estCourtier || estAgence) && (
+                {(estConciergerie || estAgence) && (
                   <div className="sm:col-span-2 rounded-md border border-[var(--color-line)] bg-[var(--color-paper-2)] p-3">
                     <p className="mb-2 text-[11px] font-medium text-[var(--color-ink-2)]">
                       Mandat (optionnel)

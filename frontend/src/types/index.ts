@@ -4,8 +4,8 @@
 // Rôles "annonceurs" professionnels ajoutés en plus de proprietaire :
 //   agence     = agence immobilière
 //   promoteur  = promoteur immobilier (publie des lots au sein d'un projet)
-//   courtier   = courtier / "samsar" (publie au nom d'un propriétaire tiers)
-export type Role = "admin" | "proprietaire" | "client" | "agence" | "promoteur" | "courtier";
+//   conciergerie = conciergerie (gère/publie des biens au nom d'un propriétaire tiers)
+export type Role = "admin" | "proprietaire" | "client" | "agence" | "promoteur" | "conciergerie";
 export type StatutVerification = "en_attente" | "verifie" | "rejete";
 
 export interface Utilisateur {
@@ -58,7 +58,7 @@ export interface Bien {
   longitude?: number | null;
   // Promoteur uniquement : lot rattaché à un projet (voir ProjetImmobilier).
   projet_id?: string | null;
-  // Courtier (obligatoire) / agence (optionnel) : propriétaire réel du bien.
+  // Conciergerie (obligatoire) / agence (optionnel) : propriétaire réel du bien.
   mandant_nom?: string | null;
   mandant_telephone?: string | null;
   photos: PhotoBien[];

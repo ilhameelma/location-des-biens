@@ -171,7 +171,7 @@ export default function ComptePage() {
           />
         </div>
 
-        {(user.role === "agence" || user.role === "promoteur" || user.role === "courtier") && (
+        {(user.role === "agence" || user.role === "promoteur" || user.role === "conciergerie") && (
           <div className="mt-4 rounded-md border border-[var(--color-line)] bg-[var(--color-paper-2)] p-3">
             <p className="mb-2 flex items-center gap-1 text-[11px] font-medium text-[var(--color-ink-2)]">
               <Briefcase size={12} /> Informations professionnelles
@@ -187,7 +187,7 @@ export default function ComptePage() {
               </div>
               <div>
                 <label className={labelClass}>
-                  {user.role === "courtier" ? "N° registre de commerce" : "N° registre de commerce / agrément"}
+                  {user.role === "conciergerie" ? "N° registre de commerce" : "N° registre de commerce / agrément"}
                 </label>
                 <input
                   value={numeroRc}
@@ -195,7 +195,7 @@ export default function ComptePage() {
                   className={inputClass}
                 />
               </div>
-              {user.role === "courtier" && (
+              {user.role === "conciergerie" && (
                 <div>
                   <label className={labelClass}>N° carte professionnelle (optionnel)</label>
                   <input

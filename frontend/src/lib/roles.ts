@@ -3,7 +3,7 @@ import type { Role } from "../types";
 /** Rôles pouvant publier/gérer des annonces (biens) — utilisé pour router
  * vers le même type de tableau de bord et pour les contrôles d'accès
  * front-end (le back-end revalide toujours indépendamment). */
-export const ROLES_ANNONCEURS: Role[] = ["proprietaire", "agence", "promoteur", "courtier"];
+export const ROLES_ANNONCEURS: Role[] = ["proprietaire", "agence", "promoteur", "conciergerie"];
 
 export const ROLE_LABELS: Record<Role, string> = {
   admin: "Administrateur",
@@ -11,7 +11,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   proprietaire: "Propriétaire",
   agence: "Agence immobilière",
   promoteur: "Promoteur immobilier",
-  courtier: "Courtier (Samsar)",
+  conciergerie: "Conciergerie",
 };
 
 /** Emoji utilisé comme icône légère dans les badges/cartes — cohérent avec
@@ -23,7 +23,7 @@ export const ROLE_EMOJI: Record<Role, string> = {
   proprietaire: "🏠",
   agence: "🏢",
   promoteur: "🏗️",
-  courtier: "🤝",
+  conciergerie: "🤝",
 };
 
 export function isRoleAnnonceur(role: Role | null | undefined): boolean {

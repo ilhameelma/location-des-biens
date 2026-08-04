@@ -67,12 +67,12 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: "/promoteur/avis", label: "Avis clients", icon: Star },
   ],
 
-  courtier: [
-    { to: "/courtier", label: "Mes biens", icon: LayoutGrid },
-    { to: "/courtier/demandes", label: "Demandes", icon: FileSignature },
-    { to: "/courtier/paiements", label: "Paiements", icon: Wallet },
-    { to: "/courtier/messages", label: "Messagerie", icon: MessageSquare },
-    { to: "/courtier/avis", label: "Avis clients", icon: Star },
+  conciergerie: [
+    { to: "/conciergerie", label: "Mes biens", icon: LayoutGrid },
+    { to: "/conciergerie/demandes", label: "Demandes", icon: FileSignature },
+    { to: "/conciergerie/paiements", label: "Paiements", icon: Wallet },
+    { to: "/conciergerie/messages", label: "Messagerie", icon: MessageSquare },
+    { to: "/conciergerie/avis", label: "Avis clients", icon: Star },
   ],
 
   admin: [
@@ -88,7 +88,7 @@ const ROLE_LABEL: Record<Role, string> = {
   proprietaire: "ESPACE PROPRIÉTAIRE",
   agence: "ESPACE AGENCE",
   promoteur: "ESPACE PROMOTEUR",
-  courtier: "ESPACE COURTIER",
+  conciergerie: "ESPACE CONCIERGERIE",
   admin: "ADMINISTRATION",
 };
 

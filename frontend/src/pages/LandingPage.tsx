@@ -487,11 +487,17 @@ export default function LandingPage() {
                 Une plateforme pensée pour le marché locatif marocain
               </h2>
               <p className="mt-5 text-sm leading-relaxed text-[var(--color-ink-2)]">
-                ImmoVision L'intelligence au service de l'immobilier va au-delà d'un simple site d'annonces : la
-                gestion des contrats, des paiements et de la messagerie est intégrée
-                nativement, et chaque interaction — annonce, réservation, paiement —
-                alimente un pipeline de données qui affine en continu nos modèles
-                d'estimation de loyer et de détection de fraude.
+                ImmoVision — L’intelligence au service de l’immobilier va au-delà d’un simple site d’annonces. 
+                Notre plateforme intègre nativement la gestion des contrats, des paiements et de la messagerie afin de créer un écosystème immobilier complet et intelligent.
+
+                Chaque interaction — publication d’une annonce, réservation, signature d’un contrat ou transaction financière
+                — génère des données exploitées au sein d’une architecture Big Data moderne basée sur la collecte,
+                 le stockage et l’analyse massive des informations. Ces données alimentent des modèles d’intelligence artificielle capables d’améliorer continuellement l’estimation des loyers, 
+                 la recommandation des biens, la détection des fraudes et l’analyse des tendances du marché immobilier.
+
+                Grâce à cette combinaison entre Big Data, Machine Learning et automatisation intelligente,
+                 ImmoVision transforme les données immobilières en décisions fiables, rapides et personnalisées pour les clients, propriétaires et professionnels du secteur.
+
               </p>
               <ul className="mt-6 space-y-3">
                 {[

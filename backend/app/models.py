@@ -21,7 +21,7 @@ class Utilisateur(Base):
     email: Mapped[str] = mapped_column(String(150), unique=True, index=True)
     mot_de_passe_hash: Mapped[str] = mapped_column(String(255))
     telephone: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    # admin | client | proprietaire | agence | promoteur | courtier
+    # admin | client | proprietaire | agence | promoteur | conciergerie
     role: Mapped[str] = mapped_column(String(20))
     statut_verification: Mapped[str] = mapped_column(String(20), default="en_attente")  # en_attente|verifie|rejete
     # Vérification de l'email à l'inscription (indépendante de statut_verification
@@ -58,11 +58,11 @@ class Bien(Base):
     nb_pieces: Mapped[int | None] = mapped_column(Integer, nullable=True)
     statut: Mapped[str] = mapped_column(String(20), default="disponible", index=True)
     # Promoteur uniquement : lot rattaché à un projet immobilier (voir ProjetImmobilier).
-    # NULL pour les autres rôles annonceurs (proprietaire/agence/courtier).
+    # NULL pour les autres rôles annonceurs (proprietaire/agence/conciergerie).
     projet_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("projet_immobilier.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    # Courtier (obligatoire) / agence (optionnel) : identité du propriétaire
+    # Conciergerie (obligatoire) / agence (optionnel) : identité du propriétaire
     # réel pour le compte duquel l'annonce est publiée ("sous mandat").
     mandant_nom: Mapped[str | None] = mapped_column(String(150), nullable=True)
     mandant_telephone: Mapped[str | None] = mapped_column(String(20), nullable=True)

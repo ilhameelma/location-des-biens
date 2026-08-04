@@ -135,7 +135,7 @@ def list_my_biens(
     user: models.Utilisateur = Depends(require_role(*ROLES_ANNONCEURS)),
 ):
     """Liste les biens de l'annonceur connecté — propriétaire, agence,
-    promoteur ou courtier (avec photos), filtrable par type_transaction
+    promoteur ou conciergerie (avec photos), filtrable par type_transaction
     (location|vente)."""
     query = (
         db.query(models.Bien)
@@ -273,9 +273,9 @@ def create_bien(
     - promoteur    : doit obligatoirement rattacher le lot à un projet qui lui
                      appartient déjà (POST /projets au préalable) ; les champs
                      mandant_* n'ont pas de sens ici et sont ignorés.
-    - courtier     : mandant_nom/téléphone optionnels (le bien est généralement
-                     publié "sous mandat" au nom d'un propriétaire tiers, mais le
-                     courtier peut choisir de ne pas le préciser) ; projet_id
+    - conciergerie : mandant_nom/téléphone optionnels (le bien est généralement
+                     publié "sous mandat" au nom d'un propriétaire tiers, mais la
+                     conciergerie peut choisir de ne pas le préciser) ; projet_id
                      est réservé au promoteur.
     """
     data = payload.model_dump()
@@ -292,7 +292,7 @@ def create_bien(
             raise HTTPException(status_code=404, detail="Projet introuvable")
         data["mandant_nom"] = None
         data["mandant_telephone"] = None
-    elif user.role == "courtier":
+    elif user.role == "conciergerie":
         data["projet_id"] = None
     else:  # proprietaire, agence
         if data.get("projet_id"):

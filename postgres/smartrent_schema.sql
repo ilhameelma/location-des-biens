@@ -19,9 +19,9 @@ CREATE TABLE utilisateur (
     -- Rôles "annonceurs" professionnels ajoutés en plus de proprietaire :
     --   agence     = agence immobilière (portefeuille de biens, éventuellement pour le compte de tiers)
     --   promoteur  = promoteur immobilier (publie des lots au sein d'un projet immobilier neuf)
-    --   courtier   = courtier / "samsar" (publie des biens au nom d'un propriétaire tiers, mandant_nom obligatoire)
+    --   conciergerie = conciergerie (publie/gère des biens au nom d'un propriétaire tiers, mandant_nom obligatoire)
     role                VARCHAR(20) NOT NULL
-                        CHECK (role IN ('admin', 'proprietaire', 'client', 'agence', 'promoteur', 'courtier')),
+                        CHECK (role IN ('admin', 'proprietaire', 'client', 'agence', 'promoteur', 'conciergerie')),
     statut_verification VARCHAR(20) NOT NULL DEFAULT 'en_attente'
                         CHECK (statut_verification IN ('en_attente', 'verifie', 'rejete')),
     -- Vérification de l'email à l'inscription : un compte nouvellement créé
@@ -34,7 +34,7 @@ CREATE TABLE utilisateur (
     -- Champs professionnels (NULL pour client/admin/proprietaire particulier) :
     raison_sociale      VARCHAR(150),  -- nom de la société — obligatoire pour agence/promoteur
     numero_rc           VARCHAR(50),   -- registre de commerce / agrément promoteur
-    numero_carte_pro    VARCHAR(50),   -- carte professionnelle courtier (optionnel — "samsar" souvent informel)
+    numero_carte_pro    VARCHAR(50),   -- carte professionnelle conciergerie (optionnel — souvent informelle)
     date_creation       TIMESTAMP NOT NULL DEFAULT now(),
     date_maj            TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -90,9 +90,9 @@ CREATE TABLE bien (
     statut              VARCHAR(20) NOT NULL DEFAULT 'disponible'
                         CHECK (statut IN ('disponible', 'loue', 'vendu', 'en_attente', 'suspendu')),
     -- Promoteur uniquement : lot rattaché à un projet immobilier. NULL pour
-    -- les 3 autres rôles annonceurs (proprietaire/agence/courtier).
+    -- les 3 autres rôles annonceurs (proprietaire/agence/conciergerie).
     projet_id           UUID REFERENCES projet_immobilier(id) ON DELETE SET NULL,
-    -- Courtier (obligatoire) / agence (optionnel) : identité du propriétaire
+    -- Conciergerie (obligatoire) / agence (optionnel) : identité du propriétaire
     -- réel pour le compte duquel l'annonce est publiée ("sous mandat").
     mandant_nom         VARCHAR(150),
     mandant_telephone   VARCHAR(20),
