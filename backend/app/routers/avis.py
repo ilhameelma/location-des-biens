@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
 from ..deps import require_role
+from ..kafka_producer import publish_event
+from ..kafka_topics import AVIS_CREE
 
 router = APIRouter(prefix="/avis", tags=["avis"])
 
@@ -57,6 +59,22 @@ def create_avis(
     db.add(avis)
     db.commit()
     db.refresh(avis)
+
+    # Étape 10 — Collecte des données : publie l'événement métier vers Kafka
+    # (repris ensuite par Spark -> data lake MinIO -> data warehouse dw.fait_avis).
+    publish_event(
+        AVIS_CREE,
+        key=str(avis.id),
+        payload={
+            "id": avis.id,
+            "bien_id": avis.bien_id,
+            "client_id": avis.client_id,
+            "proprietaire_id": avis.proprietaire_id,
+            "note": avis.note,
+            "date_creation": avis.date_creation,
+        },
+    )
+
     return _enrich(db, [avis])[0]
 
 

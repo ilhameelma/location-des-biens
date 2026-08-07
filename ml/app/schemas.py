@@ -6,11 +6,17 @@ superficie, prix, nb_pieces). Les champs optionnels (quartier, chambres,
 salles_de_bain, meuble) permettent une précision accrue si/quand le schéma
 `bien` est étendu plus tard — voir feature_engineering.py pour le détail
 des heuristiques appliquées quand ils sont absents.
+
+`type_transaction` route chaque requête vers le jeu de modèles location ou
+vente (voir feature_engineering.py / feature_engineering_vente.py) — deux
+modèles entraînés séparément, sur des données et des features différentes.
 """
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+
+TypeTransaction = Literal["location", "vente"]
 
 
 class BienInput(BaseModel):
@@ -18,12 +24,15 @@ class BienInput(BaseModel):
     superficie: float = Field(..., gt=0, examples=[90])
     nb_pieces: Optional[int] = Field(None, ge=1, examples=[3])
     type_bien: Optional[str] = Field(None, examples=["appartement"])
+    type_transaction: TypeTransaction = Field(
+        "location", description="Détermine le jeu de modèles utilisé (location ou vente)."
+    )
 
     # Champs de précision optionnels (absents du schéma `bien` actuel)
     quartier: Optional[str] = Field(None, examples=["Maarif"])
     chambres: Optional[float] = Field(None, ge=0)
     salles_de_bain: Optional[float] = Field(None, ge=0)
-    meuble: Optional[bool] = Field(None, description="null = inconnu")
+    meuble: Optional[bool] = Field(None, description="null = inconnu — ignoré pour type_transaction='vente'")
 
 
 # --- Estimation (16a) ---------------------------------------------------
@@ -37,7 +46,13 @@ class EstimationResponse(BaseModel):
     fourchette_basse_dh: float
     fourchette_haute_dh: float
     marge_erreur_dh: float = Field(
-        ..., description="MAE du modèle sur le jeu de test (~2679 DH) — sert de demi-largeur de fourchette"
+        ...,
+        description=(
+            "Demi-largeur de la fourchette. Location : MAE fixe du modèle "
+            "(~2679 DH). Vente : pourcentage du prix estimé (les prix de "
+            "vente varient sur un ordre de grandeur bien plus large que les "
+            "loyers, une marge fixe en DH n'aurait pas de sens)."
+        ),
     )
 
 
@@ -74,6 +89,13 @@ class BienCatalogue(BaseModel):
 
 
 class RecommandationRequest(BaseModel):
+    # Détermine le catalogue bootstrap externe utilisé en mode cold start
+    # (location: Mubawab/Sarouty location, vente: Mubawab/Sarouty vente).
+    # Ignoré si `catalogue` est fourni (mode catalogue réel) : c'est alors
+    # au back-end de garantir que ce catalogue ne mélange pas les deux types
+    # de transaction (filtrage sur `bien.type_transaction` avant l'envoi).
+    type_transaction: TypeTransaction = "location"
+
     # Mode 1 : biens similaires à une référence
     bien_reference: Optional[BienInput] = None
 

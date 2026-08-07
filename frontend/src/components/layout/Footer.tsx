@@ -8,11 +8,11 @@ export const CONTACT_EMAIL = "immovision260@gmail.com";
  * Footer compact réutilisé sur les pages qui n'ont pas déjà leur propre
  * footer "riche" (voir LandingPage.tsx, qui garde le sien mais affiche
  * aussi CONTACT_EMAIL). Utilisé dans DashboardLayout (toutes les pages
- * connectées), LoginPage et VerifyEmailPage.
+ * connectées) et LoginPage (formulaire + panneau de saisie du code OTP).
  *
- * `variant="dark"` : pour les pages à fond sombre (ex. LoginPage,
- * VerifyEmailPage, sur bg-[var(--color-ink)]) — texte clair au lieu du gris
- * foncé par défaut, sinon illisible.
+ * `variant="dark"` : pour les pages à fond sombre (ex. LoginPage, sur
+ * bg-[var(--color-ink)]) — texte clair au lieu du gris foncé par défaut,
+ * sinon illisible.
  */
 export default function Footer({ variant = "light" }: { variant?: "light" | "dark" }) {
   const estSombre = variant === "dark";

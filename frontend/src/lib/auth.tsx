@@ -36,7 +36,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<Utilisateur>;
   register: (payload: RegisterPayload) => Promise<RegisterResponse>;
   resendVerification: (email: string) => Promise<void>;
-  verifyEmail: (token: string) => Promise<void>;
+  verifyEmail: (email: string, code: string) => Promise<void>;
   logout: () => void;
   updateProfile: (payload: ProfileUpdatePayload) => Promise<Utilisateur>;
   changePassword: (motDePasseActuel: string, nouveauMotDePasse: string) => Promise<void>;
@@ -84,8 +84,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await api.post<void>("/auth/resend-verification", { email }, { auth: false });
   };
 
-  const verifyEmail = async (token: string) => {
-    await api.get<Utilisateur>(`/auth/verify-email?token=${encodeURIComponent(token)}`);
+  const verifyEmail = async (email: string, code: string) => {
+    await api.post<Utilisateur>("/auth/verify-email", { email, code }, { auth: false });
   };
 
   const logout = () => {

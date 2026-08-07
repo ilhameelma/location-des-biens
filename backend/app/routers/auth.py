@@ -7,40 +7,41 @@ from .. import models, schemas
 from ..config import settings
 from ..database import get_db
 from ..deps import ROLES_ANNONCEURS, get_current_user
+from ..kafka_producer import publish_event
+from ..kafka_topics import UTILISATEUR_INSCRIT
 from ..notifications_service import send_email
 from ..security import (
     hash_password,
     verify_password,
     create_access_token,
-    generate_email_verification_token,
+    generate_otp_code,
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 def _envoyer_email_verification(user: models.Utilisateur) -> None:
-    """Génère un nouveau token de vérification, l'enregistre sur l'utilisateur
-    (à committer par l'appelant) et envoie l'email contenant le lien.
+    """Génère un nouveau code OTP à 6 chiffres, l'enregistre sur l'utilisateur
+    (à committer par l'appelant) et envoie l'email contenant ce code.
     L'envoi est best-effort (voir notifications_service.send_email) : un échec
     SMTP n'empêche pas l'inscription de se terminer, mais l'utilisateur ne
     pourra se connecter qu'après avoir demandé un renvoi (/auth/resend-verification)."""
-    token = generate_email_verification_token()
-    user.email_verification_token = token
+    code = generate_otp_code()
+    user.email_verification_token = code
     user.email_verification_expire = datetime.utcnow() + timedelta(
-        hours=settings.email_verification_expire_heures
+        minutes=settings.email_verification_code_expire_minutes
     )
 
-    lien = f"{settings.frontend_url}/verify-email?token={token}"
     corps = (
         f"Bonjour {user.prenom},\n\n"
         "Merci de vous être inscrit(e) sur SmartRent. Pour activer votre compte, "
-        f"veuillez confirmer votre adresse email en cliquant sur le lien suivant "
-        f"(valable {settings.email_verification_expire_heures} heures) :\n\n"
-        f"{lien}\n\n"
+        "voici votre code de vérification à saisir dans l'application "
+        f"(valable {settings.email_verification_code_expire_minutes} minutes) :\n\n"
+        f"    {code}\n\n"
         "Si vous n'êtes pas à l'origine de cette inscription, ignorez simplement cet email.\n\n"
         "— L'équipe SmartRent"
     )
-    send_email(user.email, "SmartRent — Confirmez votre adresse email", corps)
+    send_email(user.email, "SmartRent — Votre code de vérification", corps)
 
 
 @router.post("/register", response_model=schemas.RegisterResponse, status_code=status.HTTP_201_CREATED)
@@ -71,30 +72,52 @@ def register(payload: schemas.RegisterRequest, db: Session = Depends(get_db)):
     db.add(user)
     db.commit()
     db.refresh(user)
+
+    # Étape 10 — Collecte des données : publie l'événement métier vers Kafka
+    # (repris ensuite par Spark -> data lake MinIO -> data warehouse
+    # dw.dim_utilisateur). Publié dès l'inscription (avant vérification email/
+    # admin) : le pipeline analytique veut connaître le compte dès sa
+    # création, la vérification est un état métier suivi ailleurs (colonne
+    # statut_verification en base transactionnelle, pas dans l'entrepôt).
+    publish_event(
+        UTILISATEUR_INSCRIT,
+        key=str(user.id),
+        payload={
+            "id": user.id,
+            "nom": user.nom,
+            "prenom": user.prenom,
+            "role": user.role,
+            "date_creation": user.date_creation,
+        },
+    )
+
     return schemas.RegisterResponse(
         message="Compte créé. Vérifiez votre boîte email pour confirmer votre adresse avant de vous connecter.",
         email=user.email,
     )
 
 
-@router.get("/verify-email", response_model=schemas.UtilisateurOut)
-def verify_email(token: str, db: Session = Depends(get_db)):
-    user = (
-        db.query(models.Utilisateur)
-        .filter(models.Utilisateur.email_verification_token == token)
-        .first()
-    )
-    if not user:
-        raise HTTPException(status_code=400, detail="Lien de vérification invalide ou déjà utilisé")
+@router.post("/verify-email", response_model=schemas.UtilisateurOut)
+def verify_email(payload: schemas.VerifyEmailRequest, db: Session = Depends(get_db)):
+    user = db.query(models.Utilisateur).filter(models.Utilisateur.email == payload.email).first()
+    # Message volontairement générique (ne distingue pas "email inconnu" de
+    # "code incorrect") pour ne pas laisser deviner quels emails sont inscrits.
+    erreur_code = HTTPException(status_code=400, detail="Code de vérification invalide ou expiré")
+
+    if not user or user.email_verifie:
+        raise erreur_code
+
+    if not user.email_verification_token or user.email_verification_token != payload.code:
+        raise erreur_code
 
     if user.email_verification_expire and user.email_verification_expire < datetime.utcnow():
         raise HTTPException(
             status_code=400,
-            detail="Ce lien de vérification a expiré. Demandez-en un nouveau.",
+            detail="Ce code a expiré. Demandez-en un nouveau.",
         )
 
     user.email_verifie = True
-    # Le token est à usage unique : on l'efface une fois utilisé.
+    # Le code est à usage unique : on l'efface une fois utilisé.
     user.email_verification_token = None
     user.email_verification_expire = None
     db.commit()

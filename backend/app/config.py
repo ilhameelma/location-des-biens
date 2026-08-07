@@ -43,15 +43,15 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
 
     # ============================================================
-    # Vérification d'email à l'inscription
+    # Vérification d'email à l'inscription (code OTP à 6 chiffres)
     # ============================================================
-    # Durée de validité du lien de confirmation envoyé par email.
-    email_verification_expire_heures: int = 24
-    # URL du front-end (React) utilisée pour construire le lien cliqué dans
-    # l'email : {frontend_url}/verify-email?token=... — distincte de
-    # frontend_origin (CORS) même si elles pointent vers la même adresse en
-    # local, car frontend_origin ne doit contenir aucune barre oblique finale
-    # ni servir à autre chose qu'à la configuration CORS.
+    # Durée de validité du code envoyé par email — volontairement courte
+    # (contrairement à l'ancien lien à 24h) car un code à 6 chiffres est
+    # plus simple à intercepter/deviner par force brute s'il traîne longtemps.
+    email_verification_code_expire_minutes: int = 15
+    # Conservé pour un usage futur éventuel (ex. lien "mot de passe oublié") ;
+    # n'est plus utilisé pour la vérification d'email désormais basée sur un
+    # code saisi directement dans l'application plutôt qu'un lien cliqué.
     frontend_url: str = "http://localhost:5173"
 
     # Firebase Cloud Messaging (push mobile/navigateur) : nécessite un flux
@@ -124,6 +124,27 @@ class Settings(BaseSettings):
     # ============================================================
     watermark_enabled: bool = True
     watermark_text: str = "ImmoVision.ma"
+
+    # ============================================================
+    # Processus de paiement après confirmation d'une réservation
+    # ============================================================
+    # Délai laissé au client pour payer une fois sa réservation confirmée
+    # (contrat généré automatiquement, voir routers/reservations.py) avant
+    # annulation automatique de la réservation — voir app/paiement_expiration.py.
+    delai_paiement_heures: int = 24
+    # Intervalle entre deux passages de la vérification des paiements en
+    # attente (tâche d'arrière-plan lancée au démarrage, voir app/main.py).
+    verification_paiements_intervalle_secondes: int = 15 * 60  # 15 min
+
+    # ============================================================
+    # Réservation instantanée avec paiement immédiat (carte/virement)
+    # ============================================================
+    # Fenêtre pendant laquelle le client peut annuler gratuitement une
+    # réservation payée au moment de la réservation (avant validation du
+    # propriétaire), avec remboursement automatique — comme Booking.
+    # Voir POST /reservations/instantanee et POST /reservations/{id}/annuler
+    # dans routers/reservations.py.
+    delai_annulation_heures: int = 24
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

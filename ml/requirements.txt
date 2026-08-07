@@ -6,3 +6,7 @@ scikit-learn==1.5.2
 pandas==2.2.3
 numpy==2.1.3
 joblib==1.4.2
+# Ajouté avec la séparation location/vente (modele_estimation_vente.joblib
+# est un LGBMRegressor — le modèle location, lui, reste un RandomForest
+# scikit-learn, donc pas de nouvelle dépendance pour la branche location).
+lightgbm==4.5.0

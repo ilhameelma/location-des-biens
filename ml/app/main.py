@@ -23,11 +23,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="SmartRent — Micro-service IA",
     description=(
-        "Expose les 3 modèles de la Phase 4 (étape 16) : estimation de "
-        "loyer, recommandation, détection de fraude. Appelé uniquement "
-        "par le back-end principal, jamais directement par le front-end."
+        "Expose les modèles de la Phase 4 (étape 16) : estimation de prix, "
+        "recommandation, détection de fraude — chacun disponible en deux "
+        "variantes entraînées séparément (LOCATION et VENTE), sélectionnées "
+        "par le champ `type_transaction` de chaque requête. Appelé "
+        "uniquement par le back-end principal, jamais directement par le "
+        "front-end."
     ),
-    version="1.0.0",
+    version="2.0.0",
     lifespan=lifespan,
 )
 

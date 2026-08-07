@@ -3,6 +3,12 @@ import { api } from "../../lib/api";
 import type { Paiement } from "../../types";
 import StatusBadge from "../../components/ui/StatusBadge";
 
+const METHODE_LABELS: Record<string, string> = {
+  carte_bancaire: "Carte bancaire",
+  virement: "Virement",
+  especes: "Espèces",
+};
+
 export default function PaiementsPage() {
   const [paiements, setPaiements] = useState<Paiement[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,7 +47,7 @@ export default function PaiementsPage() {
                 {p.montant.toLocaleString("fr-MA")} MAD
               </div>
               <div className="text-xs text-[var(--color-ink-3)]">
-                {p.methode} · {new Date(p.date_paiement).toLocaleDateString("fr-MA")}
+                {METHODE_LABELS[p.methode] ?? p.methode} · {new Date(p.date_paiement).toLocaleDateString("fr-MA")}
               </div>
             </div>
             <StatusBadge status={p.statut} />

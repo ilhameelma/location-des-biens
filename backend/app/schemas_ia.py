@@ -1,9 +1,17 @@
 """Schémas des endpoints /ia/* — étape 16, séparés de schemas.py pour ne
-pas alourdir le fichier principal avec des champs propres au micro-service IA."""
+pas alourdir le fichier principal avec des champs propres au micro-service IA.
 
-from typing import Optional
+`type_transaction` route chaque appel vers le jeu de modèles IA location ou
+vente, entraînés et servis séparément par le micro-service (voir
+ml_service/app/feature_engineering_vente.py) — une estimation/recommandation/
+détection de fraude sur une annonce de vente n'a pas de sens avec un modèle
+entraîné sur des loyers, et inversement."""
+
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
+
+TypeTransaction = Literal["location", "vente"]
 
 
 class BienEstimationInput(BaseModel):
@@ -11,6 +19,7 @@ class BienEstimationInput(BaseModel):
     superficie: float
     nb_pieces: Optional[int] = None
     type_bien: Optional[str] = None
+    type_transaction: TypeTransaction = "location"
     quartier: Optional[str] = None
     chambres: Optional[float] = None
     salles_de_bain: Optional[float] = None
@@ -22,6 +31,7 @@ class BienFraudeInput(BienEstimationInput):
 
 
 class RecommandationPreferences(BaseModel):
+    type_transaction: TypeTransaction = "location"
     ville: Optional[str] = None
     budget_dh: Optional[float] = None
     superficie: Optional[float] = None

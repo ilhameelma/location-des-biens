@@ -38,6 +38,16 @@ CREATE TABLE IF NOT EXISTS dw.dim_ville (
     ville    VARCHAR(100) UNIQUE NOT NULL
 );
 
+-- Alimentée par le topic Kafka smartrent.utilisateur.inscrit (ajout
+-- complémentaire à l'étape 14 initiale) — permet d'afficher un nom dans
+-- Power BI au lieu d'un UUID brut sur proprietaire_id/client_id.
+CREATE TABLE IF NOT EXISTS dw.dim_utilisateur (
+    utilisateur_id UUID PRIMARY KEY,
+    nom            VARCHAR(100),
+    prenom         VARCHAR(100),
+    role           VARCHAR(20)
+);
+
 -- ------------------------------------------------------------
 -- Faits — un enregistrement par événement métier capté par Kafka.
 -- Limitation documentée : chaque table de faits reflète l'état de
@@ -99,11 +109,59 @@ CREATE TABLE IF NOT EXISTS dw.fait_paiement (
     date_paiement    TIMESTAMP
 );
 
+-- Complément — alimentée par smartrent.avis.cree, jusqu'ici non captée.
+CREATE TABLE IF NOT EXISTS dw.fait_avis (
+    avis_id          UUID PRIMARY KEY,
+    bien_id          UUID,
+    client_id        UUID,
+    proprietaire_id  UUID,
+    note             SMALLINT,
+    date_id          DATE REFERENCES dw.dim_date(date_id),
+    date_creation    TIMESTAMP
+);
+
+-- Complément — alimentée par smartrent.reclamation.creee, jusqu'ici non captée.
+CREATE TABLE IF NOT EXISTS dw.fait_reclamation (
+    reclamation_id    UUID PRIMARY KEY,
+    utilisateur_id    UUID,
+    bien_id           UUID,
+    contrat_id        UUID,
+    type_reclamation  VARCHAR(50),
+    statut            VARCHAR(20),
+    date_id           DATE REFERENCES dw.dim_date(date_id),
+    date_creation     TIMESTAMP
+);
+
+-- Complément — table jointe "360° par bien", construite CÔTÉ SPARK (jointure
+-- des 4 faits existants sur bien_id, voir build_vue_performance_bien() dans
+-- load_to_warehouse.py) plutôt que recalculée à la volée par une vue SQL :
+-- Spark sait déjà tout regrouper en un seul passage sur la couche bronze,
+-- pas besoin de refaire ces agrégations à chaque requête Power BI.
+CREATE TABLE IF NOT EXISTS dw.fait_performance_bien (
+    bien_id                     UUID PRIMARY KEY,
+    proprietaire_id             UUID,
+    ville_id                    INTEGER REFERENCES dw.dim_ville(ville_id),
+    type_bien                   VARCHAR(30),
+    prix                        NUMERIC(12, 2),
+    statut                      VARCHAR(20),
+    nb_reservations              INTEGER,
+    nb_reservations_confirmees   INTEGER,
+    nb_contrats                  INTEGER,
+    revenu_loyer_total           NUMERIC(14, 2),
+    nb_paiements_reussis         INTEGER,
+    revenu_paiements_total       NUMERIC(14, 2),
+    nb_avis                      INTEGER,
+    note_moyenne                 NUMERIC(3, 2)
+);
+
 CREATE INDEX IF NOT EXISTS idx_fait_bien_ville        ON dw.fait_bien(ville_id);
 CREATE INDEX IF NOT EXISTS idx_fait_reservation_ville  ON dw.fait_reservation(ville_id);
 CREATE INDEX IF NOT EXISTS idx_fait_contrat_ville      ON dw.fait_contrat(ville_id);
 CREATE INDEX IF NOT EXISTS idx_fait_paiement_ville     ON dw.fait_paiement(ville_id);
 CREATE INDEX IF NOT EXISTS idx_fait_paiement_date      ON dw.fait_paiement(date_id);
+CREATE INDEX IF NOT EXISTS idx_fait_avis_bien          ON dw.fait_avis(bien_id);
+CREATE INDEX IF NOT EXISTS idx_fait_reclamation_bien   ON dw.fait_reclamation(bien_id);
+CREATE INDEX IF NOT EXISTS idx_fait_perf_bien_ville    ON dw.fait_performance_bien(ville_id);
 
 -- ------------------------------------------------------------
 -- Vues d'agrégation — consommées directement par Power BI (étape 15)
@@ -176,4 +234,35 @@ FROM dw.fait_bien b
 JOIN dw.dim_ville v ON v.ville_id = b.ville_id
 LEFT JOIN dw.fait_paiement p ON p.bien_id = b.bien_id AND p.statut = 'reussi'
 GROUP BY b.bien_id, b.type_bien, v.ville, b.prix
+ORDER BY revenu_total DESC;
+
+-- Complément — note moyenne des avis par ville (dw.fait_avis, jusqu'ici
+-- non alimentée) : jointure fait_avis <-> fait_bien (pour la ville) <->
+-- dim_ville.
+CREATE OR REPLACE VIEW dw.v_note_moyenne_par_ville AS
+SELECT
+    v.ville,
+    COUNT(*)                    AS nb_avis,
+    ROUND(AVG(a.note), 2)       AS note_moyenne
+FROM dw.fait_avis a
+JOIN dw.fait_bien b ON b.bien_id = a.bien_id
+JOIN dw.dim_ville v ON v.ville_id = b.ville_id
+GROUP BY v.ville
+ORDER BY note_moyenne DESC NULLS LAST;
+
+-- Complément — classement des propriétaires par revenu généré, avec nom
+-- lisible (jointure fait_performance_bien <-> dim_utilisateur, plutôt que
+-- l'UUID brut affiché jusqu'ici).
+CREATE OR REPLACE VIEW dw.v_revenu_par_proprietaire AS
+SELECT
+    u.utilisateur_id,
+    u.nom,
+    u.prenom,
+    COUNT(DISTINCT f.bien_id)                AS nb_biens,
+    COALESCE(SUM(f.revenu_paiements_total), 0) AS revenu_total,
+    COALESCE(SUM(f.nb_avis), 0)               AS nb_avis_recus,
+    ROUND(AVG(f.note_moyenne), 2)             AS note_moyenne
+FROM dw.fait_performance_bien f
+JOIN dw.dim_utilisateur u ON u.utilisateur_id = f.proprietaire_id
+GROUP BY u.utilisateur_id, u.nom, u.prenom
 ORDER BY revenu_total DESC;

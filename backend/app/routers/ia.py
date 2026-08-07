@@ -37,6 +37,7 @@ def _bien_to_payload(bien: models.Bien) -> dict:
         "superficie": float(bien.superficie) if bien.superficie else None,
         "nb_pieces": bien.nb_pieces,
         "type_bien": bien.type_bien,
+        "type_transaction": bien.type_transaction,
     }
 
 
@@ -47,11 +48,15 @@ def _get_bien_or_404(db: Session, bien_id: uuid.UUID) -> models.Bien:
     return bien
 
 
-def _catalogue_reel_disponible(db: Session) -> list[dict]:
-    """Biens actuellement disponibles à la location, au format attendu par
+def _catalogue_reel_disponible(db: Session, type_transaction: str) -> list[dict]:
+    """Biens actuellement disponibles pour le type de transaction demandé
+    (location OU vente — jamais les deux mélangés, au format attendu par
     le micro-service IA (mode recommandation catalogue réel)."""
     biens = db.execute(
-        select(models.Bien).where(models.Bien.statut == "disponible")
+        select(models.Bien).where(
+            models.Bien.statut == "disponible",
+            models.Bien.type_transaction == type_transaction,
+        )
     ).scalars().all()
     return [
         {
@@ -130,6 +135,7 @@ def recommander_depuis_preferences(
     current_user: models.Utilisateur = Depends(get_current_user),
 ):
     body = {
+        "type_transaction": payload.type_transaction,
         "ville": payload.ville,
         "budget_dh": payload.budget_dh,
         "superficie": payload.superficie,
@@ -139,13 +145,13 @@ def recommander_depuis_preferences(
     }
 
     if payload.utiliser_catalogue_reel:
-        catalogue = _catalogue_reel_disponible(db)
+        catalogue = _catalogue_reel_disponible(db, payload.type_transaction)
         if len(catalogue) >= SEUIL_CATALOGUE_REEL:
             body["catalogue"] = catalogue
         else:
             logger.info(
-                "Catalogue réel trop petit (%d biens, seuil=%d) — recommandation "
-                "en mode bootstrap externe.", len(catalogue), SEUIL_CATALOGUE_REEL,
+                "Catalogue réel (%s) trop petit (%d biens, seuil=%d) — recommandation "
+                "en mode bootstrap externe.", payload.type_transaction, len(catalogue), SEUIL_CATALOGUE_REEL,
             )
 
     try:
@@ -165,11 +171,12 @@ def biens_similaires(
     bien = _get_bien_or_404(db, bien_id)
 
     body = {
+        "type_transaction": bien.type_transaction,
         "bien_reference": _bien_to_payload(bien),
         "top_n": top_n,
     }
 
-    catalogue = [c for c in _catalogue_reel_disponible(db) if c["id"] != str(bien_id)]
+    catalogue = [c for c in _catalogue_reel_disponible(db, bien.type_transaction) if c["id"] != str(bien_id)]
     if len(catalogue) >= SEUIL_CATALOGUE_REEL:
         body["catalogue"] = catalogue
 

@@ -9,10 +9,12 @@ from .config import settings
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def generate_email_verification_token() -> str:
-    """Jeton aléatoire cryptographiquement sûr (URL-safe) pour le lien de
-    vérification d'email — imprévisible, à usage unique (voir routers/auth.py)."""
-    return secrets.token_urlsafe(32)
+def generate_otp_code() -> str:
+    """Code de vérification à 6 chiffres, généré de façon cryptographiquement
+    sûre (secrets.randbelow), pour la confirmation d'email par OTP saisi par
+    l'utilisateur — à usage unique et à courte durée de vie (voir routers/auth.py).
+    zfill(6) conserve les zéros en tête (ex. "004821")."""
+    return str(secrets.randbelow(1_000_000)).zfill(6)
 
 
 def hash_password(password: str) -> str:

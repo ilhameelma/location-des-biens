@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Star, Home, CalendarDays } from "lucide-react";
+import { ArrowLeft, Star, Home, CalendarDays, MessageSquareText } from "lucide-react";
 import PropertyCard from "../components/ui/PropertyCard";
+import StarRating from "../components/ui/StarRating";
+import ReservationPaymentModal from "../components/reservation/ReservationPaymentModal";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { labelAnnonceur } from "../lib/roles";
-import type { Bien, Conversation, ProprietairePublic } from "../types";
+import type { Avis, Bien, Conversation, ProprietairePublic } from "../types";
 
 function formatMembreDepuis(dateIso: string): string {
   const date = new Date(dateIso);
@@ -19,6 +21,7 @@ export default function ProprietairePublicPage() {
 
   const [profil, setProfil] = useState<ProprietairePublic | null>(null);
   const [biens, setBiens] = useState<Bien[]>([]);
+  const [avis, setAvis] = useState<Avis[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -39,27 +42,36 @@ export default function ProprietairePublicPage() {
         setError(err instanceof Error ? err.message : "Ce propriétaire est introuvable")
       )
       .finally(() => setLoading(false));
+
+    // Avis publics laissés par les clients sur ce propriétaire — best-effort,
+    // un échec ici n'empêche pas d'afficher le reste du profil/des annonces.
+    api
+      .get<Avis[]>(`/avis/proprietaire/${id}`)
+      .then(setAvis)
+      .catch(() => setAvis([]));
   }, [id]);
 
+  // Bien en cours de réservation via la modale de paiement instantané
+  // (carte/virement) — uniquement pour les locations, voir handleReserve.
+  const [reserveBien, setReserveBien] = useState<Bien | null>(null);
+
   const handleReserve = async (bien: Bien) => {
-    const dateDebut = window.prompt(
-      bien.type_transaction === "vente"
-        ? `Date souhaitée pour votre offre sur "${bien.titre}" (format AAAA-MM-JJ) :`
-        : `Date de début de la réservation pour "${bien.titre}" (format AAAA-MM-JJ) :`,
-      new Date().toISOString().slice(0, 10)
-    );
-    if (!dateDebut) return;
-    try {
-      await api.post("/reservations", { bien_id: bien.id, date_debut: dateDebut });
-      setMessage(
-        bien.type_transaction === "vente"
-          ? "Votre offre a été envoyée au propriétaire !"
-          : "Demande de réservation envoyée au propriétaire !"
+    if (bien.type_transaction === "vente") {
+      const dateDebut = window.prompt(
+        `Date souhaitée pour votre offre sur "${bien.titre}" (format AAAA-MM-JJ) :`,
+        new Date().toISOString().slice(0, 10)
       );
-      setTimeout(() => setMessage(null), 4000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible d'envoyer la demande");
+      if (!dateDebut) return;
+      try {
+        await api.post("/reservations", { bien_id: bien.id, date_debut: dateDebut });
+        setMessage("Votre offre a été envoyée au propriétaire !");
+        setTimeout(() => setMessage(null), 4000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Impossible d'envoyer la demande");
+      }
+      return;
     }
+    setReserveBien(bien);
   };
 
   const handleContact = async (bien: Bien) => {
@@ -182,6 +194,56 @@ export default function ProprietairePublicPage() {
           </div>
         )}
       </div>
+
+      {/* Avis clients sur ce propriétaire */}
+      <div className="mt-8">
+        <h2 className="font-display text-lg text-[var(--color-ink)]">
+          Avis clients ({avis.length})
+        </h2>
+
+        {avis.length === 0 ? (
+          <p className="mt-4 flex items-center gap-2 text-sm text-[var(--color-ink-3)]">
+            <MessageSquareText size={16} />
+            Aucun avis pour le moment.
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {avis.map((a) => (
+              <div
+                key={a.id}
+                className="rounded-lg border border-[var(--color-line)] bg-[var(--color-card)] p-4"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-[var(--color-ink)]">
+                      {a.client_prenom ?? "Client"} {a.client_nom ?? ""}
+                    </p>
+                    <p className="text-xs text-[var(--color-ink-3)]">
+                      {a.bien_titre ?? `Bien réf. ${a.bien_id.slice(0, 8)}`}
+                    </p>
+                  </div>
+                  <StarRating value={a.note} />
+                </div>
+                {a.commentaire && (
+                  <p className="mt-2 text-sm text-[var(--color-ink-2)]">{a.commentaire}</p>
+                )}
+                <p className="mt-2 font-mono text-xs text-[var(--color-ink-3)]">
+                  {new Date(a.date_creation).toLocaleDateString("fr-MA")}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <ReservationPaymentModal
+        bien={reserveBien}
+        onClose={() => setReserveBien(null)}
+        onSuccess={() => {
+          setMessage("Réservation confirmée et payée !");
+          setTimeout(() => setMessage(null), 4000);
+        }}
+      />
     </div>
   );
 }

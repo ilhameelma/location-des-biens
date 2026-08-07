@@ -61,6 +61,9 @@ export interface Bien {
   // Conciergerie (obligatoire) / agence (optionnel) : propriétaire réel du bien.
   mandant_nom?: string | null;
   mandant_telephone?: string | null;
+  // Équipements/commodités proposés (façon Airbnb) — codes du catalogue
+  // défini dans lib/equipements.ts, propre à chaque type_bien.
+  equipements?: string[];
   photos: PhotoBien[];
   proprietaire_nom?: string | null;
   proprietaire_prenom?: string | null;
@@ -130,7 +133,21 @@ export interface Reservation {
   date_debut: string;
   date_fin?: string | null;
   statut: StatutReservation;
+  // Processus de paiement (rempli uniquement une fois la réservation
+  // confirmée — voir ReservationOut côté back-end) : permet d'afficher
+  // directement "Payer maintenant" + le compte à rebours sans appel API
+  // supplémentaire.
+  contrat_id?: string | null;
+  date_limite_paiement?: string | null;
+  paiement_effectue?: boolean | null;
+  montant_a_payer?: number | null;
+  // Réservation instantanée avec paiement immédiat (carte/virement, avant
+  // validation du propriétaire) : fenêtre d'annulation gratuite.
+  date_limite_annulation?: string | null;
+  peut_annuler?: boolean;
 }
+
+export type MethodePaiementInstantane = "carte_bancaire" | "virement";
 
 export type StatutContrat = "actif" | "termine" | "resilie";
 
@@ -146,6 +163,8 @@ export interface Contrat {
   montant_loyer: number;
   fichier_url?: string | null;
   statut: StatutContrat;
+  date_limite_paiement?: string | null;
+  date_limite_annulation?: string | null;
 }
 
 export type StatutPaiement = "en_attente" | "reussi" | "echoue" | "rembourse";
@@ -203,6 +222,19 @@ export interface Favori {
   id: string;
   bien_id: string;
   date_creation: string;
+}
+
+export interface Actualite {
+  id: string;
+  auteur_id: string;
+  titre: string;
+  contenu: string;
+  image_url?: string | null;
+  publie: boolean;
+  date_creation: string;
+  date_maj: string;
+  auteur_nom?: string | null;
+  auteur_prenom?: string | null;
 }
 
 // Historique de recherche (page de recherche client)

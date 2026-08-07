@@ -23,7 +23,7 @@ Exécution :
 """
 from pyspark.sql import SparkSession, Window
 from pyspark.sql import functions as F
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
 # ------------------------------------------------------------
 # Config
@@ -54,6 +54,10 @@ TOPIC_RESERVATION_CREEE = "smartrent.reservation.creee"
 TOPIC_RESERVATION_STATUT_MAJ = "smartrent.reservation.statut_maj"
 TOPIC_CONTRAT_SIGNE = "smartrent.contrat.signe"
 TOPIC_PAIEMENT_EFFECTUE = "smartrent.paiement.effectue"
+# Compléments — voir backend/app/kafka_topics.py
+TOPIC_AVIS_CREE = "smartrent.avis.cree"
+TOPIC_RECLAMATION_CREEE = "smartrent.reclamation.creee"
+TOPIC_UTILISATEUR_INSCRIT = "smartrent.utilisateur.inscrit"
 
 MOIS_FR = [
     "Janvier", "Février", "Mars", "Avril", "Mai", "Juin",
@@ -119,6 +123,34 @@ SCHEMA_PAIEMENT = StructType([
     StructField("methode", StringType()),
     StructField("statut", StringType()),
     StructField("date_paiement", StringType()),
+])
+
+# Compléments — schémas des 3 événements jusqu'ici non captés
+SCHEMA_AVIS = StructType([
+    StructField("id", StringType()),
+    StructField("bien_id", StringType()),
+    StructField("client_id", StringType()),
+    StructField("proprietaire_id", StringType()),
+    StructField("note", IntegerType()),
+    StructField("date_creation", StringType()),
+])
+
+SCHEMA_RECLAMATION = StructType([
+    StructField("id", StringType()),
+    StructField("utilisateur_id", StringType()),
+    StructField("bien_id", StringType()),
+    StructField("contrat_id", StringType()),
+    StructField("type_reclamation", StringType()),
+    StructField("statut", StringType()),
+    StructField("date_creation", StringType()),
+])
+
+SCHEMA_UTILISATEUR = StructType([
+    StructField("id", StringType()),
+    StructField("nom", StringType()),
+    StructField("prenom", StringType()),
+    StructField("role", StringType()),
+    StructField("date_creation", StringType()),
 ])
 
 
@@ -237,6 +269,59 @@ def build_paiement_df(raw):
     )
 
 
+# ------------------------------------------------------------
+# Compléments — avis, réclamations, dimension utilisateur (événements
+# jusqu'ici non captés par le pipeline, voir README_KAFKA_JOINTURES.md)
+# ------------------------------------------------------------
+
+def build_avis_df(raw):
+    return (
+        parse_topic(raw, TOPIC_AVIS_CREE, SCHEMA_AVIS)
+        .dropDuplicates(["id"])
+        .select(
+            F.col("id").alias("avis_id"),
+            F.col("bien_id"),
+            F.col("client_id"),
+            F.col("proprietaire_id"),
+            F.col("note"),
+            F.to_timestamp("date_creation").alias("date_creation"),
+        )
+    )
+
+
+def build_reclamation_df(raw):
+    return (
+        parse_topic(raw, TOPIC_RECLAMATION_CREEE, SCHEMA_RECLAMATION)
+        .dropDuplicates(["id"])
+        .select(
+            F.col("id").alias("reclamation_id"),
+            F.col("utilisateur_id"),
+            F.col("bien_id"),
+            F.col("contrat_id"),
+            F.col("type_reclamation"),
+            F.col("statut"),
+            F.to_timestamp("date_creation").alias("date_creation"),
+        )
+    )
+
+
+def build_dim_utilisateur(raw):
+    """Dernier événement 'utilisateur.inscrit' reçu par id (dropDuplicates
+    suffit ici, contrairement à reservation.statut_maj : un utilisateur ne
+    change pas de nom/rôle via cet événement, publié une seule fois à
+    l'inscription)."""
+    return (
+        parse_topic(raw, TOPIC_UTILISATEUR_INSCRIT, SCHEMA_UTILISATEUR)
+        .dropDuplicates(["id"])
+        .select(
+            F.col("id").alias("utilisateur_id"),
+            F.col("nom"),
+            F.col("prenom"),
+            F.col("role"),
+        )
+    )
+
+
 def build_dim_ville(*dfs_with_ville):
     villes = None
     for df in dfs_with_ville:
@@ -277,6 +362,58 @@ def with_ville_id(df, dim_ville):
     return df.join(dim_ville, on="ville", how="left").drop("ville")
 
 
+# ------------------------------------------------------------
+# LA jointure qui manquait : les 4 faits existants (bien, réservation,
+# contrat, paiement) + avis, tous reliés entre eux sur bien_id, pour obtenir
+# une vue "360°" par bien exploitable directement dans Power BI — sans que
+# Power BI ait à refaire ces jointures/agrégations côté client à chaque
+# rafraîchissement. Faite ici, côté Spark, avant l'écriture JDBC.
+# ------------------------------------------------------------
+def build_performance_bien_df(bien_fait_df, reservation_df, contrat_df, paiement_df, avis_df):
+    resa_agg = reservation_df.groupBy("bien_id").agg(
+        F.count("*").alias("nb_reservations"),
+        F.count(F.when(F.col("statut") == "confirmee", 1)).alias("nb_reservations_confirmees"),
+    )
+
+    contrat_agg = contrat_df.groupBy("bien_id").agg(
+        F.count("*").alias("nb_contrats"),
+        F.sum("montant_loyer").alias("revenu_loyer_total"),
+    )
+
+    paiement_agg = (
+        paiement_df.filter(F.col("statut") == "reussi")
+        .groupBy("bien_id")
+        .agg(
+            F.count("*").alias("nb_paiements_reussis"),
+            F.sum("montant").alias("revenu_paiements_total"),
+        )
+    )
+
+    avis_agg = avis_df.groupBy("bien_id").agg(
+        F.count("*").alias("nb_avis"),
+        F.round(F.avg("note"), 2).alias("note_moyenne"),
+    )
+
+    return (
+        bien_fait_df.alias("b")
+        .join(resa_agg, "bien_id", "left")
+        .join(contrat_agg, "bien_id", "left")
+        .join(paiement_agg, "bien_id", "left")
+        .join(avis_agg, "bien_id", "left")
+        .select(
+            "bien_id", "proprietaire_id", "ville_id", "type_bien", "prix", "statut",
+            F.coalesce("nb_reservations", F.lit(0)).alias("nb_reservations"),
+            F.coalesce("nb_reservations_confirmees", F.lit(0)).alias("nb_reservations_confirmees"),
+            F.coalesce("nb_contrats", F.lit(0)).alias("nb_contrats"),
+            F.coalesce("revenu_loyer_total", F.lit(0.0)).alias("revenu_loyer_total"),
+            F.coalesce("nb_paiements_reussis", F.lit(0)).alias("nb_paiements_reussis"),
+            F.coalesce("revenu_paiements_total", F.lit(0.0)).alias("revenu_paiements_total"),
+            F.coalesce("nb_avis", F.lit(0)).alias("nb_avis"),
+            "note_moyenne",
+        )
+    )
+
+
 def truncate_warehouse(spark):
     """Vide toutes les tables dw.* avant rechargement (CASCADE gère l'ordre
     des FK, RESTART IDENTITY remet dim_ville.ville_id à 1)."""
@@ -286,7 +423,9 @@ def truncate_warehouse(spark):
         stmt = conn.createStatement()
         stmt.execute(
             "TRUNCATE TABLE dw.fait_bien, dw.fait_reservation, dw.fait_contrat, "
-            "dw.fait_paiement, dw.dim_ville, dw.dim_date RESTART IDENTITY CASCADE"
+            "dw.fait_paiement, dw.fait_avis, dw.fait_reclamation, "
+            "dw.fait_performance_bien, dw.dim_utilisateur, dw.dim_ville, "
+            "dw.dim_date RESTART IDENTITY CASCADE"
         )
         stmt.close()
     finally:
@@ -310,6 +449,14 @@ def main():
     bien_df = build_bien_df(raw)
     contrat_df = build_contrat_df(raw)
     paiement_df = build_paiement_df(raw)
+    # Compléments — avis/réclamation n'ont pas de colonne "ville" dans leur
+    # payload (contrairement aux autres événements) : la ville se retrouve
+    # via la jointure sur bien_id, pas besoin de la dupliquer dans le message
+    # Kafka. dim_utilisateur n'a pas de colonne date (un seul événement par
+    # utilisateur, sans date exploitée dans le warehouse).
+    avis_df = build_avis_df(raw)
+    reclamation_df = build_reclamation_df(raw)
+    dim_utilisateur = build_dim_utilisateur(raw).cache()
 
     dim_ville = build_dim_ville(reservation_df, bien_df, contrat_df, paiement_df).cache()
     dim_date = build_dim_date(
@@ -317,6 +464,8 @@ def main():
         (reservation_df, "date_creation"),
         (contrat_df, "date_signature"),
         (paiement_df, "date_paiement"),
+        (avis_df, "date_creation"),
+        (reclamation_df, "date_creation"),
     ).cache()
 
     fait_bien = with_ville_id(bien_df, dim_ville).withColumn(
@@ -347,24 +496,49 @@ def main():
         "ville_id", "montant", "methode", "statut", "date_id", "date_paiement",
     )
 
+    fait_avis = avis_df.withColumn("date_id", F.to_date("date_creation")).select(
+        "avis_id", "bien_id", "client_id", "proprietaire_id", "note",
+        "date_id", "date_creation",
+    )
+
+    fait_reclamation = reclamation_df.withColumn(
+        "date_id", F.to_date("date_creation")
+    ).select(
+        "reclamation_id", "utilisateur_id", "bien_id", "contrat_id",
+        "type_reclamation", "statut", "date_id", "date_creation",
+    )
+
+    # La jointure principale : les 4 faits + avis, réunis sur bien_id.
+    fait_performance_bien = build_performance_bien_df(
+        fait_bien, fait_reservation, fait_contrat, fait_paiement, fait_avis
+    )
+
     print("[smartrent] Vidage du data warehouse (dw.*) avant rechargement...")
     truncate_warehouse(spark)
 
     print("[smartrent] Chargement des dimensions...")
     write_table(dim_date, "dw.dim_date")
     write_table(dim_ville, "dw.dim_ville")
+    write_table(dim_utilisateur, "dw.dim_utilisateur")
 
     print("[smartrent] Chargement des faits...")
     write_table(fait_bien, "dw.fait_bien")
     write_table(fait_reservation, "dw.fait_reservation")
     write_table(fait_contrat, "dw.fait_contrat")
     write_table(fait_paiement, "dw.fait_paiement")
+    write_table(fait_avis, "dw.fait_avis")
+    write_table(fait_reclamation, "dw.fait_reclamation")
+
+    print("[smartrent] Chargement de la vue jointe fait_performance_bien...")
+    write_table(fait_performance_bien, "dw.fait_performance_bien")
 
     print(
         f"[smartrent] Terminé. "
         f"{fait_bien.count()} bien(s), {fait_reservation.count()} réservation(s), "
         f"{fait_contrat.count()} contrat(s), {fait_paiement.count()} paiement(s), "
-        f"{dim_ville.count()} ville(s), {dim_date.count()} date(s)."
+        f"{fait_avis.count()} avis, {fait_reclamation.count()} réclamation(s), "
+        f"{dim_ville.count()} ville(s), {dim_utilisateur.count()} utilisateur(s), "
+        f"{dim_date.count()} date(s)."
     )
 
 

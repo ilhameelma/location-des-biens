@@ -384,6 +384,7 @@ export default function ProjetDetailPage() {
             superficie={form.superficie}
             nb_pieces={form.nb_pieces}
             type_bien={form.type_bien}
+            type_transaction={form.type_transaction}
             onApply={(prix) => setForm((f) => ({ ...f, prix: String(prix) }))}
           />
 

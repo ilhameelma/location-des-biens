@@ -4,6 +4,8 @@ import { Building2, Wallet, FileSignature, Plus, X, Upload, Pencil, Trash2, Fold
 import StatCard from "../../components/ui/StatCard";
 import PropertyCard from "../../components/ui/PropertyCard";
 import EstimationWidget from "../../components/ia/EstimationWidget";
+import EquipmentsPicker from "../../components/ui/EquipmentsPicker";
+import { equipementsDisponibles } from "../../lib/equipements";
 import LocationPicker from "../../components/map/LocationPicker";
 import { api, formatErrorDetail } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
@@ -47,6 +49,7 @@ export default function OwnerDashboard() {
     longitude: null as number | null,
     mandant_nom: "",
     mandant_telephone: "",
+    equipements: [] as string[],
   });
 
   // --- Gestion des images ---
@@ -74,6 +77,7 @@ export default function OwnerDashboard() {
     nb_pieces: "",
     mandant_nom: "",
     mandant_telephone: "",
+    equipements: [] as string[],
   });
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -131,6 +135,7 @@ export default function OwnerDashboard() {
       longitude: null,
       mandant_nom: "",
       mandant_telephone: "",
+      equipements: [],
     });
     setPourTiers(false);
     previewUrls.forEach((url) => URL.revokeObjectURL(url));
@@ -157,6 +162,7 @@ export default function OwnerDashboard() {
         nb_pieces: form.nb_pieces ? Number(form.nb_pieces) : null,
         latitude: form.latitude,
         longitude: form.longitude,
+        equipements: form.equipements,
         // Conciergerie/agence : envoyés seulement si la bascule "pour le compte
         // d'un tiers" est activée — le mandat reste optionnel dans tous les cas.
         mandant_nom: (estConciergerie || estAgence) && pourTiers ? form.mandant_nom : null,
@@ -251,6 +257,7 @@ export default function OwnerDashboard() {
       nb_pieces: bien.nb_pieces != null ? String(bien.nb_pieces) : "",
       mandant_nom: bien.mandant_nom ?? "",
       mandant_telephone: bien.mandant_telephone ?? "",
+      equipements: bien.equipements ?? [],
     });
   };
 
@@ -271,6 +278,7 @@ export default function OwnerDashboard() {
         prix: Number(editForm.prix),
         superficie: editForm.superficie ? Number(editForm.superficie) : null,
         nb_pieces: editForm.nb_pieces ? Number(editForm.nb_pieces) : null,
+        equipements: editForm.equipements,
         ...(estConciergerie || estAgence
           ? {
               mandant_nom: editForm.mandant_nom || null,
@@ -383,7 +391,15 @@ export default function OwnerDashboard() {
             <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Type</label>
             <select
               value={form.type_bien}
-              onChange={(e) => setForm({ ...form, type_bien: e.target.value as TypeBien })}
+              onChange={(e) => {
+                const nouveauType = e.target.value as TypeBien;
+                const catalogue = new Set(equipementsDisponibles(nouveauType).map((eq) => eq.code));
+                setForm({
+                  ...form,
+                  type_bien: nouveauType,
+                  equipements: form.equipements.filter((code) => catalogue.has(code)),
+                });
+              }}
               className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
             >
               {TYPES.map((t) => (
@@ -472,6 +488,7 @@ export default function OwnerDashboard() {
             superficie={form.superficie}
             nb_pieces={form.nb_pieces}
             type_bien={form.type_bien}
+            type_transaction={form.type_transaction}
             onApply={(prix) => setForm((f) => ({ ...f, prix: String(prix) }))}
           />
 
@@ -536,6 +553,12 @@ export default function OwnerDashboard() {
               )}
             </div>
           )}
+
+          <EquipmentsPicker
+            typeBien={form.type_bien}
+            selected={form.equipements}
+            onChange={(equipements) => setForm({ ...form, equipements })}
+          />
 
           {/* --- Champ d'upload d'images --- */}
           <div className="sm:col-span-2">
@@ -638,7 +661,15 @@ export default function OwnerDashboard() {
                   <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Type</label>
                   <select
                     value={editForm.type_bien}
-                    onChange={(e) => setEditForm({ ...editForm, type_bien: e.target.value as TypeBien })}
+                    onChange={(e) => {
+                      const nouveauType = e.target.value as TypeBien;
+                      const catalogue = new Set(equipementsDisponibles(nouveauType).map((eq) => eq.code));
+                      setEditForm({
+                        ...editForm,
+                        type_bien: nouveauType,
+                        equipements: editForm.equipements.filter((code) => catalogue.has(code)),
+                      });
+                    }}
                     className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
                   >
                     {TYPES.map((t) => (
@@ -734,6 +765,11 @@ export default function OwnerDashboard() {
                     className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
                   />
                 </div>
+                <EquipmentsPicker
+                  typeBien={editForm.type_bien}
+                  selected={editForm.equipements}
+                  onChange={(equipements) => setEditForm({ ...editForm, equipements })}
+                />
                 {(estConciergerie || estAgence) && (
                   <div className="sm:col-span-2 rounded-md border border-[var(--color-line)] bg-[var(--color-paper-2)] p-3">
                     <p className="mb-2 text-[11px] font-medium text-[var(--color-ink-2)]">

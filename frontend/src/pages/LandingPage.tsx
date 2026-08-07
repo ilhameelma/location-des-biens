@@ -25,9 +25,11 @@ import {
   BadgeDollarSign,
   Handshake,
   UserCog,
+  Newspaper,
+  CalendarDays,
 } from "lucide-react";
 import { api } from "../lib/api";
-import type { Bien } from "../types";
+import type { Actualite, Bien } from "../types";
 import { resolvePhotoUrl } from "../components/ui/ImageCarousel";
 import { CONTACT_EMAIL } from "../components/layout/Footer";
 import logo from "../assets/logo_immo1.png";
@@ -43,6 +45,7 @@ const ARCH_STYLE: CSSProperties = {
 const NAV_LINKS = [
   { href: "#services", label: "Services" },
   { href: "#catalogue", label: "Catalogue" },
+  { href: "#actualites", label: "Actualités" },
   { href: "#apropos", label: "À propos" },
   { href: "#contact", label: "Contact" },
 ];
@@ -205,6 +208,9 @@ export default function LandingPage() {
   const [biens, setBiens] = useState<Bien[]>([]);
   const [loadingBiens, setLoadingBiens] = useState(true);
 
+  const [actualites, setActualites] = useState<Actualite[]>([]);
+  const [loadingActualites, setLoadingActualites] = useState(true);
+
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
@@ -222,6 +228,24 @@ export default function LandingPage() {
       })
       .finally(() => {
         if (active) setLoadingBiens(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get<Actualite[]>("/actualites?limite=3")
+      .then((data) => {
+        if (active) setActualites(data);
+      })
+      .catch(() => {
+        if (active) setActualites([]);
+      })
+      .finally(() => {
+        if (active) setLoadingActualites(false);
       });
     return () => {
       active = false;
@@ -474,6 +498,85 @@ export default function LandingPage() {
           </p>
         </div>
       </section>
+
+      {/* ================= ACTUALITÉS ================= */}
+      {(loadingActualites || actualites.length > 0) && (
+        <section id="actualites" className="border-t border-[var(--color-line)] bg-[var(--color-card)] py-20">
+          <div className="mx-auto max-w-6xl px-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <span className="tick-rule inline-block font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-brass-deep)]">
+                  Actualités
+                </span>
+                <h2 className="mt-4 font-display text-3xl text-[var(--color-ink)]">
+                  Les dernières nouvelles d'ImmoVision
+                </h2>
+              </div>
+              <Link
+                to="/actualites"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-brass-deep)] hover:underline"
+              >
+                Voir toutes les actualités
+                <ArrowRight size={15} />
+              </Link>
+            </div>
+
+            {loadingActualites ? (
+              <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="h-64 animate-pulse rounded-lg bg-[var(--color-paper-2)]" />
+                ))}
+              </div>
+            ) : (
+              <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                {actualites.map((a) => (
+                  <article
+                    key={a.id}
+                    className="overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)]"
+                  >
+                    <div className="relative h-40 w-full overflow-hidden bg-[var(--color-paper-2)]">
+                      {a.image_url ? (
+                        <img
+                          src={resolvePhotoUrl(a.image_url)}
+                          alt={a.titre}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-[var(--color-ink-3)]">
+                          <Newspaper size={26} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2 p-5">
+                      <p className="flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-wide text-[var(--color-brass-deep)]">
+                        <CalendarDays size={12} />
+                        {new Date(a.date_creation).toLocaleDateString("fr-FR", {
+                          day: "numeric",
+                          month: "long",
+                          year: "numeric",
+                        })}
+                      </p>
+                      <h3 className="font-display text-base leading-snug text-[var(--color-ink)]">
+                        {a.titre}
+                      </h3>
+                      <p className="line-clamp-3 text-sm leading-relaxed text-[var(--color-ink-2)]">
+                        {a.contenu}
+                      </p>
+                      <Link
+                        to={`/actualites#${a.id}`}
+                        className="inline-flex items-center gap-1 pt-1 text-sm font-medium text-[var(--color-brass-deep)] hover:underline"
+                      >
+                        Lire la suite
+                        <ArrowRight size={13} />
+                      </Link>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {/* ================= À PROPOS ================= */}
       <section id="apropos" className="border-t border-[var(--color-line)] bg-[var(--color-card)] py-20">

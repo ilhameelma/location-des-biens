@@ -17,6 +17,7 @@ import {
   Heart,
   HardHat,
   FolderKanban,
+  Newspaper,
 } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { useFavorisCount } from "../../lib/useFavorisCount";
@@ -80,6 +81,7 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: "/admin/utilisateurs", label: "Utilisateurs", icon: Users },
     { to: "/admin/biens", label: "Annonces", icon: Building2 },
     { to: "/admin/reclamations", label: "Réclamations", icon: ShieldAlert },
+    { to: "/admin/actualites", label: "Actualités", icon: Newspaper },
   ],
 };
 
@@ -195,7 +197,7 @@ export default function DashboardLayout({
           <button
             onClick={() => {
               logout();
-              navigate("/login");
+              navigate("/");
             }}
 
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--color-ink-2)] transition-all duration-200 hover:bg-[var(--color-rust-bg)] hover:text-[var(--color-rust)]"

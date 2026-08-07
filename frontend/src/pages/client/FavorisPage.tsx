@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Heart } from "lucide-react";
 import PropertyCard from "../../components/ui/PropertyCard";
+import ReservationPaymentModal from "../../components/reservation/ReservationPaymentModal";
 import { api } from "../../lib/api";
 import { emitFavorisChanged } from "../../lib/favorisEvents";
 import type { Bien, Conversation } from "../../types";
@@ -37,25 +38,27 @@ export default function FavorisPage() {
     }
   };
 
+  // Bien en cours de réservation via la modale de paiement instantané
+  // (carte/virement) — uniquement pour les locations, voir handleReserve.
+  const [reserveBien, setReserveBien] = useState<Bien | null>(null);
+
   const handleReserve = async (bien: Bien) => {
-    const dateDebut = window.prompt(
-      bien.type_transaction === "vente"
-        ? `Date souhaitée pour votre offre sur "${bien.titre}" (format AAAA-MM-JJ) :`
-        : `Date de début de la réservation pour "${bien.titre}" (format AAAA-MM-JJ) :`,
-      new Date().toISOString().slice(0, 10)
-    );
-    if (!dateDebut) return;
-    try {
-      await api.post("/reservations", { bien_id: bien.id, date_debut: dateDebut });
-      setMessage(
-        bien.type_transaction === "vente"
-          ? "Votre offre a été envoyée au propriétaire !"
-          : "Demande de réservation envoyée au propriétaire !"
+    if (bien.type_transaction === "vente") {
+      const dateDebut = window.prompt(
+        `Date souhaitée pour votre offre sur "${bien.titre}" (format AAAA-MM-JJ) :`,
+        new Date().toISOString().slice(0, 10)
       );
-      setTimeout(() => setMessage(null), 4000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible d'envoyer la demande");
+      if (!dateDebut) return;
+      try {
+        await api.post("/reservations", { bien_id: bien.id, date_debut: dateDebut });
+        setMessage("Votre offre a été envoyée au propriétaire !");
+        setTimeout(() => setMessage(null), 4000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Impossible d'envoyer la demande");
+      }
+      return;
     }
+    setReserveBien(bien);
   };
 
   const handleContact = async (bien: Bien) => {
@@ -118,6 +121,15 @@ export default function FavorisPage() {
           ))}
         </div>
       )}
+
+      <ReservationPaymentModal
+        bien={reserveBien}
+        onClose={() => setReserveBien(null)}
+        onSuccess={() => {
+          setMessage("Réservation confirmée et payée !");
+          setTimeout(() => setMessage(null), 4000);
+        }}
+      />
     </div>
   );
 }

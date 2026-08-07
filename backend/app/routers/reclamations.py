@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from .. import models, schemas
 from ..database import get_db
 from ..deps import get_current_user, require_role
+from ..kafka_producer import publish_event
+from ..kafka_topics import RECLAMATION_CREEE
 from ..notifications_service import notify
 
 router = APIRouter(prefix="/reclamations", tags=["reclamations"])
@@ -109,6 +111,22 @@ def create_reclamation(
     db.add(reclamation)
     db.commit()
     db.refresh(reclamation)
+
+    # Étape 10 — Collecte des données : publie l'événement métier vers Kafka
+    # (repris ensuite par Spark -> data lake MinIO -> data warehouse dw.fait_reclamation).
+    publish_event(
+        RECLAMATION_CREEE,
+        key=str(reclamation.id),
+        payload={
+            "id": reclamation.id,
+            "utilisateur_id": reclamation.utilisateur_id,
+            "bien_id": reclamation.bien_id,
+            "contrat_id": reclamation.contrat_id,
+            "type_reclamation": reclamation.type_reclamation,
+            "statut": reclamation.statut,
+            "date_creation": reclamation.date_creation,
+        },
+    )
 
     enriched = _enrich(db, [reclamation])[0]
 

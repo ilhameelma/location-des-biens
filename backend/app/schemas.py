@@ -92,7 +92,9 @@ class RegisterResponse(BaseModel):
 
 
 class VerifyEmailRequest(BaseModel):
-    token: str
+    """Saisie du code OTP reçu par email (6 chiffres) pour confirmer un compte."""
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6, pattern=r"^\d{6}$")
 
 
 class ResendVerificationRequest(BaseModel):
@@ -142,6 +144,10 @@ class BienCreate(BaseModel):
     # Conciergerie (obligatoire) / agence (optionnel) : propriétaire réel du bien.
     mandant_nom: Optional[str] = None
     mandant_telephone: Optional[str] = None
+    # Équipements/commodités (façon Airbnb) — liste de codes libres, propres
+    # au catalogue défini côté front (frontend/src/lib/equipements.ts),
+    # différent selon type_bien (résidentiel/bureau/magasin/garage/terrain).
+    equipements: list[str] = Field(default_factory=list)
 
 
 class BienUpdate(BaseModel):
@@ -163,6 +169,7 @@ class BienUpdate(BaseModel):
     longitude: Optional[float] = None
     mandant_nom: Optional[str] = None
     mandant_telephone: Optional[str] = None
+    equipements: Optional[list[str]] = None
 
 
 class BienOut(BaseModel):
@@ -184,6 +191,7 @@ class BienOut(BaseModel):
     projet_id: Optional[uuid.UUID] = None
     mandant_nom: Optional[str] = None
     mandant_telephone: Optional[str] = None
+    equipements: list[str] = []
     photos: list[PhotoBienOut] = []
     # Pratique pour l'affichage ("Publié par ...") sans requête supplémentaire.
     proprietaire_nom: Optional[str] = None
@@ -277,6 +285,26 @@ class ReservationCreate(BaseModel):
     date_fin: Optional[date] = None
 
 
+MethodePaiementInstantane = Literal["carte_bancaire", "virement"]
+
+
+class ReservationInstantaneeCreate(BaseModel):
+    """Réservation + paiement en une seule étape (carte ou virement),
+    avant toute validation du propriétaire — voir
+    POST /reservations/instantanee. Réservé aux annonces en location
+    (type_transaction="location") ; une offre d'achat continue de passer
+    par ReservationCreate (POST /reservations), sans paiement immédiat."""
+
+    bien_id: uuid.UUID
+    date_debut: date
+    date_fin: Optional[date] = None
+    methode_paiement: MethodePaiementInstantane
+    # Référence simulée (jamais de vraies coordonnées bancaires côté
+    # back-end) : ex. "**** 4242" pour une carte, ou une référence de
+    # virement saisie/générée côté front.
+    reference_transaction: Optional[str] = None
+
+
 class ReservationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -285,6 +313,18 @@ class ReservationOut(BaseModel):
     date_debut: date
     date_fin: Optional[date] = None
     statut: StatutReservation
+    # Processus de paiement (rempli uniquement une fois la réservation
+    # confirmée, voir Reservation.contrat_id et propriétés associées dans
+    # app/models.py) : permet au front-end d'afficher directement "Payer
+    # maintenant" + le compte à rebours sans appel API supplémentaire.
+    contrat_id: Optional[uuid.UUID] = None
+    date_limite_paiement: Optional[datetime] = None
+    paiement_effectue: Optional[bool] = None
+    montant_a_payer: Optional[float] = None
+    # Réservation instantanée avec paiement immédiat : fenêtre d'annulation
+    # gratuite (24h par défaut, voir settings.delai_annulation_heures).
+    date_limite_annulation: Optional[datetime] = None
+    peut_annuler: bool = False
 
 
 class ReservationStatutUpdate(BaseModel):
@@ -305,6 +345,8 @@ class ContratOut(BaseModel):
     montant_loyer: float
     fichier_url: Optional[str] = None
     statut: StatutContrat
+    date_limite_paiement: Optional[datetime] = None
+    date_limite_annulation: Optional[datetime] = None
 
 
 # ---------- Paiement ----------
@@ -465,3 +507,29 @@ class NotificationOut(BaseModel):
     contenu: str
     lu: bool
     date_creation: datetime
+
+
+# ---------- Actualité (publiées par un admin, affichées sur la landing page) ----------
+class ActualiteCreate(BaseModel):
+    titre: str = Field(min_length=1, max_length=200)
+    contenu: str = Field(min_length=1)
+
+
+class ActualiteUpdate(BaseModel):
+    titre: Optional[str] = Field(default=None, min_length=1, max_length=200)
+    contenu: Optional[str] = Field(default=None, min_length=1)
+    publie: Optional[bool] = None
+
+
+class ActualiteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    auteur_id: uuid.UUID
+    titre: str
+    contenu: str
+    image_url: Optional[str] = None
+    publie: bool
+    date_creation: datetime
+    date_maj: datetime
+    auteur_nom: Optional[str] = None
+    auteur_prenom: Optional[str] = None

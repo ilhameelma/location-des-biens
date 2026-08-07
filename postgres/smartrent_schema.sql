@@ -103,7 +103,14 @@ CREATE TABLE bien (
     -- volée (lent) à chaque affichage de la fiche. NULL = pas encore
     -- calculées (bien tout juste créé, calcul en arrière-plan en cours).
     proximite_data        JSONB,
-    proximite_calculee_le TIMESTAMP
+    proximite_calculee_le TIMESTAMP,
+    -- Complément "équipements" (façon Airbnb) : liste de codes texte parmi
+    -- le catalogue défini côté front-end (frontend/src/lib/equipements.ts),
+    -- propre à chaque type_bien (résidentiel / bureau / magasin / garage /
+    -- terrain). Stocké en JSONB plutôt qu'une table à part : simple liste,
+    -- jamais interrogée par elle-même (pas de filtre de recherche dessus
+    -- pour l'instant), donc pas besoin de normaliser.
+    equipements           JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 
 CREATE INDEX idx_bien_proprietaire ON bien(proprietaire_id);
@@ -157,7 +164,19 @@ CREATE TABLE contrat (
     fichier_url         VARCHAR(500),  -- contrat signé stocké sur MinIO/S3
     statut              VARCHAR(20) NOT NULL DEFAULT 'actif'
                         CHECK (statut IN ('actif', 'termine', 'resilie')),
-    date_creation       TIMESTAMP NOT NULL DEFAULT now()
+    date_creation       TIMESTAMP NOT NULL DEFAULT now(),
+    -- Processus de paiement : fixée à la confirmation de la réservation
+    -- (date_creation + délai configurable, 24h par défaut). Passé ce délai
+    -- sans paiement réussi, la réservation est annulée automatiquement
+    -- (backend/app/paiement_expiration.py). NULL = pas de délai (contrat
+    -- créé avant cette fonctionnalité).
+    date_limite_paiement TIMESTAMP,
+    -- Réservation instantanée avec paiement immédiat (carte/virement, avant
+    -- validation du propriétaire) : fenêtre d'annulation gratuite avec
+    -- remboursement (date_signature + délai configurable, 24h par défaut).
+    -- Mutuellement exclusif avec date_limite_paiement sur un même contrat
+    -- (backend/app/routers/reservations.py).
+    date_limite_annulation TIMESTAMP
 );
 
 CREATE INDEX idx_contrat_bien ON contrat(bien_id);
@@ -286,5 +305,22 @@ CREATE INDEX idx_recherche_historique_client ON recherche_historique(client_id);
 CREATE INDEX idx_recherche_historique_client_date ON recherche_historique(client_id, date_recherche DESC);
 
 -- ============================================================
+-- ============================================================
+-- Table : actualite (actualités publiées par un admin, affichées
+-- sur la page d'accueil publique)
+-- ============================================================
+CREATE TABLE actualite (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    auteur_id           UUID NOT NULL REFERENCES utilisateur(id),
+    titre               VARCHAR(200) NOT NULL,
+    contenu             TEXT NOT NULL,
+    image_url           TEXT,
+    publie              BOOLEAN NOT NULL DEFAULT true,
+    date_creation       TIMESTAMP NOT NULL DEFAULT now(),
+    date_maj            TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_actualite_publie_date ON actualite(publie, date_creation DESC);
+
 -- Fin du script
 -- ============================================================

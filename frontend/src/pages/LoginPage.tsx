@@ -22,7 +22,7 @@ const ROLE_CARDS: { role: Role; label: string; icon: typeof Home }[] = [
 const ROLES_PRO: Role[] = ["agence", "promoteur", "conciergerie"];
 
 export default function LoginPage() {
-  const { login, register, resendVerification } = useAuth();
+  const { login, register, resendVerification, verifyEmail } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -42,13 +42,19 @@ export default function LoginPage() {
   const [numeroCartePro, setNumeroCartePro] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  // Affiché après inscription réussie : le compte doit être confirmé par email
-  // avant de pouvoir se connecter, donc pas de redirection automatique.
+  // Contient l'email en attente de confirmation (après inscription, ou après
+  // une tentative de connexion sur un compte pas encore confirmé) : tant
+  // qu'il n'est pas null, le panneau de saisie du code OTP s'affiche à la
+  // place du formulaire, pas de redirection automatique.
   const [inscriptionEnAttente, setInscriptionEnAttente] = useState<string | null>(null);
-  // Vrai quand /auth/login échoue précisément parce que l'email n'est pas
-  // confirmé (403 côté back-end) — propose alors de renvoyer le lien.
-  const [emailNonConfirme, setEmailNonConfirme] = useState(false);
   const [renvoiEnvoye, setRenvoiEnvoye] = useState(false);
+  // Code à 6 chiffres saisi par l'utilisateur, reçu par email.
+  const [otpCode, setOtpCode] = useState("");
+  const [otpError, setOtpError] = useState<string | null>(null);
+  const [otpVerifying, setOtpVerifying] = useState(false);
+  // Affiche un message de succès sur l'écran de connexion juste après
+  // confirmation du code, pour rassurer l'utilisateur avant qu'il se connecte.
+  const [codeConfirme, setCodeConfirme] = useState(false);
 
   const estPro = ROLES_PRO.includes(role);
   const raisonSocialeObligatoire = role === "agence" || role === "promoteur";
@@ -56,8 +62,8 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    setEmailNonConfirme(false);
     setRenvoiEnvoye(false);
+    setCodeConfirme(false);
     setLoading(true);
     try {
       if (mode === "register") {
@@ -72,6 +78,8 @@ export default function LoginPage() {
           numero_rc: estPro ? numeroRc : undefined,
           numero_carte_pro: role === "conciergerie" ? numeroCartePro : undefined,
         });
+        setOtpCode("");
+        setOtpError(null);
         setInscriptionEnAttente(res.email);
       } else {
         const user = await login(email, password);
@@ -79,9 +87,17 @@ export default function LoginPage() {
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Une erreur est survenue";
-      setError(message);
       if (mode === "login" && message.toLowerCase().includes("non confirmée")) {
-        setEmailNonConfirme(true);
+        // Compte existant mais email pas encore confirmé : plutôt qu'un simple
+        // message d'erreur, on propose directement la saisie du code reçu par
+        // email (un nouveau code est envoyé pour que l'ancien, potentiellement
+        // oublié/expiré, ne soit pas le seul recours).
+        setOtpCode("");
+        setOtpError(null);
+        setInscriptionEnAttente(email);
+        resendVerification(email).catch(() => {});
+      } else {
+        setError(message);
       }
     } finally {
       setLoading(false);
@@ -89,15 +105,36 @@ export default function LoginPage() {
   };
 
   const handleRenvoyerConfirmation = async () => {
+    if (!inscriptionEnAttente) return;
     setLoading(true);
     try {
-      await resendVerification(email);
+      await resendVerification(inscriptionEnAttente);
       setRenvoiEnvoye(true);
     } catch {
       // best-effort : même en cas d'échec réseau, on ne bloque pas l'utilisateur
       setRenvoiEnvoye(true);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleVerifierCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inscriptionEnAttente) return;
+    setOtpError(null);
+    setOtpVerifying(true);
+    try {
+      await verifyEmail(inscriptionEnAttente, otpCode);
+      setEmail(inscriptionEnAttente);
+      setPassword("");
+      setInscriptionEnAttente(null);
+      setOtpCode("");
+      setCodeConfirme(true);
+      setMode("login");
+    } catch (err) {
+      setOtpError(err instanceof Error ? err.message : "Code invalide ou expiré");
+    } finally {
+      setOtpVerifying(false);
     }
   };
 
@@ -118,34 +155,65 @@ export default function LoginPage() {
               <img src={logo} alt="ImmoVision" className="h-24 w-auto object-contain" />
             </div>
             <h2 className="mb-2 text-base font-semibold text-[var(--color-ink)]">
-              Vérifiez votre boîte email
+              Entrez votre code de vérification
             </h2>
             <p className="mb-5 text-sm text-[var(--color-ink-2)]">
-              Un email de confirmation a été envoyé à{" "}
+              Un code à 6 chiffres a été envoyé à{" "}
               <span className="font-medium text-[var(--color-ink)]">{inscriptionEnAttente}</span>.
-              Cliquez sur le lien qu'il contient pour activer votre compte (pensez à vérifier vos
-              spams).
+              Saisissez-le ci-dessous pour activer votre compte (pensez à vérifier vos spams,
+              le code expire après 15 minutes).
             </p>
-            {renvoiEnvoye && (
-              <p className="mb-3 text-xs text-[var(--color-brass-deep)]">
-                Un nouvel email vient d'être envoyé.
-              </p>
-            )}
+
+            <form onSubmit={handleVerifierCode}>
+              <input
+                required
+                autoFocus
+                inputMode="numeric"
+                pattern="\d{6}"
+                maxLength={6}
+                placeholder="••••••"
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                className="mb-3 w-full rounded-md border border-[var(--color-line)] px-3 py-2.5 text-center text-lg tracking-[0.5em] outline-none focus:border-[var(--color-brass)]"
+              />
+
+              {otpError && (
+                <p className="mb-3 rounded-md bg-[var(--color-rust-bg)] px-3 py-2 text-xs text-[var(--color-rust)]">
+                  {otpError}
+                </p>
+              )}
+              {renvoiEnvoye && !otpError && (
+                <p className="mb-3 text-xs text-[var(--color-brass-deep)]">
+                  Un nouveau code vient d'être envoyé.
+                </p>
+              )}
+
+              <button
+                type="submit"
+                disabled={otpVerifying || otpCode.length !== 6}
+                className="mb-3 w-full rounded-md bg-[var(--color-brass)] py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-deep)] disabled:opacity-60"
+              >
+                {otpVerifying ? "Vérification…" : "Vérifier le code"}
+              </button>
+            </form>
+
             <button
               type="button"
               onClick={handleRenvoyerConfirmation}
               disabled={loading}
               className="mb-3 w-full rounded-md border border-[var(--color-line)] py-2.5 text-sm font-medium text-[var(--color-ink)] transition-colors hover:bg-[var(--color-paper-2)] disabled:opacity-60"
             >
-              Renvoyer l'email de confirmation
+              Renvoyer le code
             </button>
             <button
               type="button"
               onClick={() => {
                 setInscriptionEnAttente(null);
+                setOtpCode("");
+                setOtpError(null);
                 setMode("login");
               }}
-              className="w-full rounded-md bg-[var(--color-brass)] py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-deep)]"
+              className="w-full text-xs font-medium text-[var(--color-ink-2)] underline transition-colors hover:text-[var(--color-ink)]"
             >
               Retour à la connexion
             </button>
@@ -278,7 +346,10 @@ export default function LoginPage() {
             required
             type="email"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              setCodeConfirme(false);
+            }}
             className="mb-3 w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
           />
           <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Mot de passe</label>
@@ -291,19 +362,15 @@ export default function LoginPage() {
             className="mb-5 w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)]"
           />
 
+          {mode === "login" && codeConfirme && !error && (
+            <div className="mb-4 rounded-md bg-[#eaf3ea] px-3 py-2 text-xs text-green-700">
+              Email confirmé — vous pouvez vous connecter.
+            </div>
+          )}
+
           {error && (
             <div className="mb-4 rounded-md bg-[var(--color-rust-bg)] px-3 py-2 text-xs text-[var(--color-rust)]">
               {error}
-              {emailNonConfirme && (
-                <button
-                  type="button"
-                  onClick={handleRenvoyerConfirmation}
-                  disabled={loading}
-                  className="mt-2 block font-medium underline disabled:opacity-60"
-                >
-                  {renvoiEnvoye ? "Email renvoyé ✓" : "Renvoyer l'email de confirmation"}
-                </button>
-              )}
             </div>
           )}
 

@@ -19,6 +19,7 @@ from .routers import (
     ia,
     recherches,
     projets,
+    actualites,
 )
 
 # Crée les tables si elles n'existent pas encore
@@ -51,6 +52,22 @@ async def _capture_main_event_loop():
     import asyncio
 
     ws_manager.set_main_loop(asyncio.get_running_loop())
+
+
+@app.on_event("startup")
+async def _demarrer_verification_paiements():
+    """
+    Processus de paiement après confirmation d'une réservation : lance en
+    arrière-plan la vérification périodique des contrats impayés dont le
+    délai est dépassé (voir app/paiement_expiration.py). `create_task` ne
+    bloque pas le démarrage — la boucle tourne indéfiniment à côté du
+    reste de l'application.
+    """
+    import asyncio
+
+    from .paiement_expiration import boucle_verification_paiements
+
+    asyncio.create_task(boucle_verification_paiements())
 
 # ============================================================
 # CORS
@@ -85,6 +102,7 @@ app.include_router(notifications.router, prefix="/api")
 app.include_router(ia.router, prefix="/api")
 app.include_router(recherches.router, prefix="/api")
 app.include_router(projets.router, prefix="/api")
+app.include_router(actualites.router, prefix="/api")
 
 
 @app.get("/api/health")

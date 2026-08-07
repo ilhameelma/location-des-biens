@@ -35,6 +35,14 @@ def create_paiement(
     contrat = db.get(models.Contrat, payload.contrat_id)
     if not contrat or contrat.client_id != current_user.id:
         raise HTTPException(status_code=403, detail="Accès refusé")
+    if contrat.statut != "actif":
+        # Contrat déjà résilié (ex. annulé automatiquement pour paiement
+        # non effectué dans le délai imparti, voir app/paiement_expiration.py)
+        # ou terminé : plus aucun paiement possible dessus.
+        raise HTTPException(
+            status_code=400,
+            detail="Ce contrat n'est plus actif (réservation annulée ou clôturée) — paiement impossible.",
+        )
 
     paiement = models.Paiement(**payload.model_dump(), statut="reussi")
     db.add(paiement)

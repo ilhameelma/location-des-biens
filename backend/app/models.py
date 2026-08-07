@@ -26,6 +26,9 @@ class Utilisateur(Base):
     statut_verification: Mapped[str] = mapped_column(String(20), default="en_attente")  # en_attente|verifie|rejete
     # Vérification de l'email à l'inscription (indépendante de statut_verification
     # ci-dessus, qui est la vérification "métier" du profil par un admin).
+    # email_verification_token stocke désormais un code OTP à 6 chiffres (et non
+    # plus un jeton de lien) — nom de colonne conservé tel quel pour éviter une
+    # migration SQL, seule la sémantique/génération a changé (voir security.py).
     email_verifie: Mapped[bool] = mapped_column(default=False)
     email_verification_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
     email_verification_expire: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -77,6 +80,11 @@ class Bien(Base):
     # après publication) ou pour les biens créés avant cette fonctionnalité.
     proximite_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     proximite_calculee_le: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # Équipements/commodités proposés par le bien (façon Airbnb — voir
+    # frontend/src/lib/equipements.ts pour le catalogue de codes valides,
+    # propre à chaque type_bien). Liste de codes texte, ex. ["wifi", "meuble"].
+    equipements: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
 
     proprietaire: Mapped["Utilisateur"] = relationship(back_populates="biens")
     photos: Mapped[list["PhotoBien"]] = relationship(back_populates="bien", cascade="all, delete-orphan")
@@ -147,6 +155,58 @@ class Reservation(Base):
     statut: Mapped[str] = mapped_column(String(20), default="en_attente")  # en_attente|confirmee|refusee|annulee
     date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
+    # Processus de paiement : une réservation confirmée génère un contrat
+    # (voir routers/reservations.py) dont le paiement est suivi. Relation
+    # 1-1 côté réservation, purement pratique pour exposer directement dans
+    # ReservationOut (voir schemas.py) l'état du paiement sans que le
+    # front-end n'ait à recouper deux appels API séparés.
+    contrat: Mapped["Contrat | None"] = relationship(back_populates="reservation", uselist=False)
+
+    @property
+    def contrat_id(self) -> uuid.UUID | None:
+        return self.contrat.id if self.contrat else None
+
+    @property
+    def date_limite_paiement(self) -> datetime | None:
+        return self.contrat.date_limite_paiement if self.contrat else None
+
+    @property
+    def paiement_effectue(self) -> bool | None:
+        """None si la réservation n'a pas (encore) de contrat associé
+        (pas confirmée) ; sinon True/False selon qu'un paiement `reussi`
+        existe déjà pour ce contrat."""
+        if not self.contrat:
+            return None
+        return any(p.statut == "reussi" for p in self.contrat.paiements)
+
+    @property
+    def montant_a_payer(self) -> float | None:
+        return float(self.contrat.montant_loyer) if self.contrat else None
+
+    # ------------------------------------------------------------
+    # Réservation instantanée avec paiement immédiat (carte/virement) —
+    # complément à la logique "payer après confirmation" ci-dessus.
+    # Quand la réservation est créée + payée en une seule fois (voir
+    # POST /reservations/instantanee), le client dispose d'une fenêtre de
+    # `settings.delai_annulation_heures` (24h par défaut) pour annuler et
+    # être remboursé sans justification, comme sur Booking.
+    # ------------------------------------------------------------
+    @property
+    def date_limite_annulation(self) -> datetime | None:
+        return self.contrat.date_limite_annulation if self.contrat else None
+
+    @property
+    def peut_annuler(self) -> bool:
+        """True si le client peut encore annuler gratuitement cette
+        réservation (contrat actif, dans la fenêtre des 24h)."""
+        if not self.contrat or self.contrat.statut != "actif":
+            return False
+        if self.statut != "confirmee":
+            return False
+        if not self.contrat.date_limite_annulation:
+            return False
+        return datetime.utcnow() < self.contrat.date_limite_annulation
+
 
 class Contrat(Base):
     __tablename__ = "contrat"
@@ -165,6 +225,22 @@ class Contrat(Base):
     fichier_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     statut: Mapped[str] = mapped_column(String(20), default="actif")  # actif|termine|resilie
     date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Processus de paiement : fixée à la confirmation de la réservation
+    # (date_creation + settings.delai_paiement_heures, 24h par défaut) —
+    # voir routers/reservations.py. NULL pour les contrats créés avant
+    # cette fonctionnalité, ou non issus d'une réservation (le cas
+    # échéant) : jamais annulés automatiquement.
+    date_limite_paiement: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Réservation instantanée (paiement carte/virement au moment de la
+    # réservation, avant toute validation du propriétaire) : fenêtre
+    # d'annulation gratuite avec remboursement, façon Booking. NULL pour
+    # les contrats issus de l'ancien flux "payer après confirmation"
+    # (date_limite_paiement) — les deux mécanismes sont mutuellement
+    # exclusifs sur un même contrat.
+    date_limite_annulation: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    reservation: Mapped["Reservation | None"] = relationship(back_populates="contrat")
+    paiements: Mapped[list["Paiement"]] = relationship(back_populates="contrat")
 
 
 class Paiement(Base):
@@ -177,6 +253,8 @@ class Paiement(Base):
     reference_transaction: Mapped[str | None] = mapped_column(String(100), nullable=True)
     statut: Mapped[str] = mapped_column(String(20), default="en_attente")  # en_attente|reussi|echoue|rembourse
     date_paiement: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    contrat: Mapped["Contrat"] = relationship(back_populates="paiements")
 
 
 class Avis(Base):
@@ -276,3 +354,23 @@ class Notification(Base):
     contenu: Mapped[str] = mapped_column(Text)
     lu: Mapped[bool] = mapped_column(Boolean, default=False)
     date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Actualite(Base):
+    """Actualités publiées par un administrateur, affichées sur la page
+    d'accueil publique (landing page) — annonces, nouveautés de la
+    plateforme, communiqués, etc."""
+
+    __tablename__ = "actualite"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
+    auteur_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("utilisateur.id"))
+    titre: Mapped[str] = mapped_column(String(200))
+    contenu: Mapped[str] = mapped_column(Text)
+    image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Permet de dépublier une actualité sans la supprimer (retirée de la
+    # landing page mais conservée côté admin) — même logique que `statut`
+    # sur `bien`.
+    publie: Mapped[bool] = mapped_column(Boolean, default=True)
+    date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    date_maj: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

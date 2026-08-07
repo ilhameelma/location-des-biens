@@ -14,7 +14,9 @@ import {
 import ImageCarousel, { resolvePhotoUrl } from "../components/ui/ImageCarousel";
 import StatusBadge from "../components/ui/StatusBadge";
 import PropertiesMap from "../components/map/PropertiesMap";
+import ReservationPaymentModal from "../components/reservation/ReservationPaymentModal";
 import NearbyPlaces from "../components/map/NearbyPlaces";
+import EquipmentsList from "../components/ui/EquipmentsList";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { emitFavorisChanged } from "../lib/favorisEvents";
@@ -87,24 +89,28 @@ export default function BienDetailPage() {
     }
   };
 
+  // Bien en cours de réservation via la modale de paiement instantané
+  // (carte/virement) — uniquement pour les locations.
+  const [reserveOpen, setReserveOpen] = useState(false);
+
   const handleReserve = async () => {
     if (!bien) return;
-    const dateDebut = window.prompt(
-      `Date de début pour "${bien.titre}" (format AAAA-MM-JJ) :`,
-      new Date().toISOString().slice(0, 10)
-    );
-    if (!dateDebut) return;
-    try {
-      await api.post("/reservations", { bien_id: bien.id, date_debut: dateDebut });
-      setMessage(
-        bien.type_transaction === "vente"
-          ? "Votre offre a été envoyée au propriétaire !"
-          : "Demande de réservation envoyée au propriétaire !"
+    if (bien.type_transaction === "vente") {
+      const dateDebut = window.prompt(
+        `Date souhaitée pour votre offre sur "${bien.titre}" (format AAAA-MM-JJ) :`,
+        new Date().toISOString().slice(0, 10)
       );
-      setTimeout(() => setMessage(null), 4000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Impossible d'envoyer la demande");
+      if (!dateDebut) return;
+      try {
+        await api.post("/reservations", { bien_id: bien.id, date_debut: dateDebut });
+        setMessage("Votre offre a été envoyée au propriétaire !");
+        setTimeout(() => setMessage(null), 4000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Impossible d'envoyer la demande");
+      }
+      return;
     }
+    setReserveOpen(true);
   };
 
   const handleContact = async () => {
@@ -205,6 +211,9 @@ export default function BienDetailPage() {
               {bien.description || "Aucune description fournie par le propriétaire."}
             </p>
           </div>
+
+          {/* Ce que propose ce bien (équipements/commodités, façon Airbnb) */}
+          <EquipmentsList codes={bien.equipements ?? []} />
 
           {/* Localisation sur la carte */}
           <div className="mt-8">
@@ -364,6 +373,15 @@ export default function BienDetailPage() {
           </div>
         </div>
       </div>
+
+      <ReservationPaymentModal
+        bien={reserveOpen ? bien : null}
+        onClose={() => setReserveOpen(false)}
+        onSuccess={() => {
+          setMessage("Réservation confirmée et payée !");
+          setTimeout(() => setMessage(null), 4000);
+        }}
+      />
     </div>
   );
 }

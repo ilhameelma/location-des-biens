@@ -25,6 +25,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.preprocessing import StandardScaler
 
 from ..feature_engineering import build_price_features, normalize_ville
+from ..feature_engineering_vente import build_price_features_vente, normalize_ville_vente
 from ..schemas import RecommandationItem, RecommandationRequest, RecommandationResponse
 
 logger = logging.getLogger("ml_service.recommandation")
@@ -107,6 +108,12 @@ def _recommend_in_live_catalogue(payload: RecommandationRequest) -> list[Recomma
 
 
 def _recommend_in_bootstrap_catalogue(payload: RecommandationRequest, models) -> list[RecommandationItem]:
+    if payload.type_transaction == "vente":
+        return _recommend_in_bootstrap_catalogue_vente(payload, models)
+    return _recommend_in_bootstrap_catalogue_location(payload, models)
+
+
+def _recommend_in_bootstrap_catalogue_location(payload: RecommandationRequest, models) -> list[RecommandationItem]:
     recommender = models.recommender
 
     if payload.bien_reference is not None:
@@ -121,6 +128,12 @@ def _recommend_in_bootstrap_catalogue(payload: RecommandationRequest, models) ->
             "salles_de_bain": payload.bien_reference.salles_de_bain,
             "meuble": payload.bien_reference.meuble,
         }
+        # Filtrage indispensable : dict.get(clé, defaut) ne retombe sur le
+        # défaut QUE si la clé est absente, pas si sa valeur est None — un
+        # bien de référence sans salles_de_bain/meuble renseignés injectait
+        # jusqu'ici un NaN dans le vecteur de similarité (ValueError côté
+        # cosine_similarity), au lieu de la valeur médiane attendue.
+        preferences = {k: v for k, v in preferences.items() if v is not None}
     else:
         preferences = {
             "ville": normalize_ville(payload.ville or ""),
@@ -128,6 +141,49 @@ def _recommend_in_bootstrap_catalogue(payload: RecommandationRequest, models) ->
             "surface_m2": payload.superficie,
             "chambres": payload.nb_pieces,
             "meuble": payload.meuble,
+        }
+        preferences = {k: v for k, v in preferences.items() if v is not None}
+
+    df_reco = recommender.recommend_from_preferences(preferences, top_n=payload.top_n)
+
+    results = []
+    for _, row in df_reco.iterrows():
+        results.append(RecommandationItem(
+            id=None,
+            titre=row.get("titre"),
+            ville=row["ville"],
+            quartier=row.get("quartier"),
+            prix_dh=float(row["prix_dh"]),
+            superficie_m2=float(row.get("surface_m2")) if pd.notna(row.get("surface_m2")) else None,
+            score_similarite=round(float(row["score_similarite"]), 4),
+        ))
+    return results
+
+
+def _recommend_in_bootstrap_catalogue_vente(payload: RecommandationRequest, models) -> list[RecommandationItem]:
+    """Même logique que la variante location ci-dessus, mais sur le
+    recommandeur/catalogue VENTE (recommender_ventes_artifacts.joblib) —
+    pas de champ "meuble" (absent du dataset vente)."""
+    recommender = models.recommender_vente
+
+    if payload.bien_reference is not None:
+        ref_data = payload.bien_reference.model_dump()
+        X_ref = build_price_features_vente(ref_data, models.market_vente)
+        prix_estime_ref = float(models.price_model_vente.predict(X_ref)[0])
+        preferences = {
+            "ville": normalize_ville_vente(payload.bien_reference.ville),
+            "budget_dh": prix_estime_ref,
+            "surface_m2": payload.bien_reference.superficie,
+            "chambres": payload.bien_reference.chambres or payload.bien_reference.nb_pieces,
+            "salles_de_bain": payload.bien_reference.salles_de_bain,
+        }
+        preferences = {k: v for k, v in preferences.items() if v is not None}
+    else:
+        preferences = {
+            "ville": normalize_ville_vente(payload.ville or ""),
+            "budget_dh": payload.budget_dh,
+            "surface_m2": payload.superficie,
+            "chambres": payload.nb_pieces,
         }
         preferences = {k: v for k, v in preferences.items() if v is not None}
 

@@ -11,6 +11,14 @@ RESERVATION_CREEE = "smartrent.reservation.creee"
 RESERVATION_STATUT_MAJ = "smartrent.reservation.statut_maj"
 CONTRAT_SIGNE = "smartrent.contrat.signe"
 PAIEMENT_EFFECTUE = "smartrent.paiement.effectue"
+# Complément — ces 3 événements n'étaient pas captés jusqu'ici : le pipeline
+# analytique (data lake -> data warehouse -> Power BI) ne "voyait" donc ni
+# les avis, ni les réclamations, ni les inscriptions. Ajoutés pour permettre
+# une dimension utilisateur (dw.dim_utilisateur) et deux nouvelles tables de
+# faits (dw.fait_avis, dw.fait_reclamation) — voir load_to_warehouse.py.
+AVIS_CREE = "smartrent.avis.cree"
+RECLAMATION_CREEE = "smartrent.reclamation.creee"
+UTILISATEUR_INSCRIT = "smartrent.utilisateur.inscrit"
 
 # Liste exhaustive, utile pour créer les topics à l'avance (voir scripts/create_topics.py)
 ALL_TOPICS = [
@@ -19,4 +27,7 @@ ALL_TOPICS = [
     RESERVATION_STATUT_MAJ,
     CONTRAT_SIGNE,
     PAIEMENT_EFFECTUE,
+    AVIS_CREE,
+    RECLAMATION_CREEE,
+    UTILISATEUR_INSCRIT,
 ]

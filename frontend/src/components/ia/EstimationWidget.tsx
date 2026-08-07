@@ -1,20 +1,29 @@
 import { useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { api } from "../../lib/api";
-import type { EstimationResponse, TypeBien } from "../../types";
+import type { EstimationResponse, TypeBien, TypeTransaction } from "../../types";
 
 interface Props {
   ville: string;
   superficie: string;
   nb_pieces: string;
   type_bien: TypeBien;
+  type_transaction: TypeTransaction;
   onApply: (prix: number) => void;
 }
 
-export default function EstimationWidget({ ville, superficie, nb_pieces, type_bien, onApply }: Props) {
+export default function EstimationWidget({
+  ville,
+  superficie,
+  nb_pieces,
+  type_bien,
+  type_transaction,
+  onApply,
+}: Props) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EstimationResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const estVente = type_transaction === "vente";
 
   const canEstimate = ville.trim().length > 0 && Number(superficie) > 0;
 
@@ -28,6 +37,7 @@ export default function EstimationWidget({ ville, superficie, nb_pieces, type_bi
         superficie: Number(superficie),
         nb_pieces: nb_pieces ? Number(nb_pieces) : null,
         type_bien,
+        type_transaction,
       });
       setResult(res);
     } catch (err) {
@@ -55,7 +65,7 @@ export default function EstimationWidget({ ville, superficie, nb_pieces, type_bi
           className="flex items-center gap-1.5 rounded-md bg-[var(--color-brass)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--color-brass-deep)] disabled:opacity-40"
         >
           {loading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-          {loading ? "Calcul…" : "Estimer le loyer"}
+          {loading ? "Calcul…" : estVente ? "Estimer le prix de vente" : "Estimer le loyer"}
         </button>
       </div>
 
@@ -72,7 +82,9 @@ export default function EstimationWidget({ ville, superficie, nb_pieces, type_bi
           <div>
             <div className="font-mono text-lg font-semibold text-[var(--color-ink)]">
               {result.prix_estime_dh.toLocaleString("fr-MA")} MAD
-              <span className="ml-1 text-xs font-normal text-[var(--color-ink-3)]">/ mois</span>
+              {!estVente && (
+                <span className="ml-1 text-xs font-normal text-[var(--color-ink-3)]">/ mois</span>
+              )}
             </div>
             <div className="text-xs text-[var(--color-ink-3)]">
               Fourchette : {result.fourchette_basse_dh.toLocaleString("fr-MA")} –{" "}
