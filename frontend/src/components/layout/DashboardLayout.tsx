@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 import {
   Building2,
   LayoutGrid,
@@ -100,7 +100,6 @@ export default function DashboardLayout({
   children: ReactNode;
 }) {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
   const favorisCount = useFavorisCount();
 
   if (!user) return null;
@@ -196,8 +195,13 @@ export default function DashboardLayout({
 
           <button
             onClick={() => {
+              // Rechargement complet vers "/" plutôt qu'une navigation
+              // React Router : on évite ainsi toute course possible avec
+              // la redirection de ProtectedRoute (qui renvoie vers /login
+              // dès que `user` devient null) — ici la page recharge
+              // entièrement, donc React repart de zéro directement sur "/".
               logout();
-              navigate("/");
+              window.location.href = "/";
             }}
 
             className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--color-ink-2)] transition-all duration-200 hover:bg-[var(--color-rust-bg)] hover:text-[var(--color-rust)]"
