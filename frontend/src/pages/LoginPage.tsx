@@ -139,7 +139,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-ink)] px-4 py-10">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--color-ink)] px-3 py-6 sm:px-4 sm:py-10">
       <div className="w-full max-w-md">
         <Link
           to="/"
@@ -150,7 +150,7 @@ export default function LoginPage() {
         </Link>
 
         {inscriptionEnAttente ? (
-          <div className="rounded-lg bg-[var(--color-card)] p-8 text-center shadow-xl">
+          <div className="rounded-lg bg-[var(--color-card)] p-5 text-center shadow-xl sm:p-8">
             <div className="mb-6 flex justify-center">
               <img src={logo} alt="ImmoVision" className="h-24 w-auto object-contain" />
             </div>
@@ -219,7 +219,7 @@ export default function LoginPage() {
             </button>
           </div>
         ) : (
-        <form onSubmit={handleSubmit} className="rounded-lg bg-[var(--color-card)] p-8 shadow-xl">
+        <form onSubmit={handleSubmit} className="rounded-lg bg-[var(--color-card)] p-5 shadow-xl sm:p-8">
           {/* Logo */}
 
   <div className="mb-6 flex justify-center">
@@ -253,7 +253,7 @@ export default function LoginPage() {
 
           {mode === "register" && (
             <>
-              <div className="mb-3 grid grid-cols-3 gap-2">
+              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {ROLE_CARDS.map((c) => (
                   <button
                     type="button"
@@ -272,7 +272,7 @@ export default function LoginPage() {
                   </button>
                 ))}
               </div>
-              <div className="mb-3 grid grid-cols-2 gap-2">
+              <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Prénom</label>
                   <input

@@ -177,7 +177,8 @@ export default function ReservationsPage() {
 
       {reservations.length > 0 && (
         <div className="mt-8 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-card)]">
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="bg-[var(--color-paper-2)] font-mono text-xs uppercase tracking-wide text-[var(--color-ink-2)]">
               <tr>
                 <th className="px-4 py-3">Bien</th>
@@ -306,6 +307,7 @@ export default function ReservationsPage() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       )}
     </div>

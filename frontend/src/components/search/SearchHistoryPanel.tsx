@@ -54,7 +54,7 @@ export default function SearchHistoryPanel({
       </button>
 
       {open && (
-        <div className="absolute left-0 top-full z-20 mt-2 w-80 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-card)] shadow-lg">
+        <div className="absolute left-0 top-full z-20 mt-2 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-card)] shadow-lg">
           <div className="flex items-center justify-between border-b border-[var(--color-line)] px-4 py-2.5">
             <span className="text-sm font-medium text-[var(--color-ink)]">Recherches récentes</span>
             {historique.length > 0 && (

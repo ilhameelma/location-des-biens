@@ -131,7 +131,7 @@ export default function ComptePage() {
           Informations personnelles
         </h2>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={labelClass}>Prénom</label>
             <input required value={prenom} onChange={(e) => setPrenom(e.target.value)} className={inputClass} />
@@ -246,7 +246,7 @@ export default function ComptePage() {
           className={`mb-3 ${inputClass}`}
         />
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className={labelClass}>Nouveau mot de passe</label>
             <input

@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { NavLink } from "react-router-dom";
 import {
   Building2,
@@ -18,6 +18,8 @@ import {
   HardHat,
   FolderKanban,
   Newspaper,
+  Menu,
+  X,
 } from "lucide-react";
 import { useAuth } from "../../lib/auth";
 import { useFavorisCount } from "../../lib/useFavorisCount";
@@ -101,129 +103,154 @@ export default function DashboardLayout({
 }) {
   const { user, logout } = useAuth();
   const favorisCount = useFavorisCount();
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (!user) return null;
 
   const items = NAV_BY_ROLE[user.role];
 
-  return (
-    <div className="flex min-h-screen bg-[var(--color-paper)]">
-
-      {/* ================= SIDEBAR ================= */}
-
-      <aside className="flex w-64 flex-col justify-between border-r border-[var(--color-line)] bg-[var(--color-card)] px-4 py-6">
-
-        <div>
-
-          {/* Logo */}
-
-          <div className="mb-8 flex items-center gap-3 px-2">
-            <img
-              src={logo}
-              alt="ImmoVision"
-              className="h-20 w-auto"
-            />
-
-            <span className="font-display text-2xl font-semibold text-[var(--color-ink)]">
+  const sidebarContent = (
+    <>
+      <div>
+        {/* Logo */}
+        <div className="mb-8 flex items-center justify-between gap-3 px-2">
+          <div className="flex items-center gap-3">
+            <img src={logo} alt="ImmoVision" className="h-14 w-auto lg:h-20" />
+            <span className="font-display text-xl font-semibold text-[var(--color-ink)] lg:text-2xl">
               ImmoVision
             </span>
           </div>
-
-          {/* Role */}
-
-          <div className="mb-4 px-2 font-mono text-[11px] uppercase tracking-widest text-[var(--color-ink-3)]">
-            {ROLE_LABEL[user.role]}
-          </div>
-
-          {/* Menu */}
-
-          <nav className="space-y-1">
-
-            {items.map((item) => (
-
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === `/${user.role}`}
-
-                className={({ isActive }) =>
-                  `flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
-                    isActive
-                      ? "bg-[var(--color-brass-bg)] text-[var(--color-brass)] shadow-sm"
-                      : "text-[var(--color-ink)] hover:bg-[var(--color-paper-2)] hover:text-[var(--color-brass)]"
-                  }`
-                }
-              >
-
-                <span className="flex items-center gap-3">
-                  <item.icon size={18} />
-                  {item.label}
-                </span>
-
-                {item.to === "/client/favoris" && favorisCount > 0 && (
-                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-brass)] px-1.5 text-[10px] font-semibold text-white">
-                    {favorisCount > 99 ? "99+" : favorisCount}
-                  </span>
-                )}
-
-              </NavLink>
-
-            ))}
-
-          </nav>
-
-        </div>
-
-        {/* Bas Sidebar */}
-
-        <div className="space-y-1">
-
-          <NavLink
-            to="/compte"
-
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
-                isActive
-                  ? "bg-[var(--color-brass-bg)] text-[var(--color-brass)]"
-                  : "text-[var(--color-ink)] hover:bg-[var(--color-paper-2)] hover:text-[var(--color-brass)]"
-              }`
-            }
-          >
-            <UserCircle size={18} />
-            Mon compte
-          </NavLink>
-
+          {/* Bouton de fermeture du tiroir — visible uniquement en dessous de lg */}
           <button
-            onClick={() => {
-              // Rechargement complet vers "/" plutôt qu'une navigation
-              // React Router : on évite ainsi toute course possible avec
-              // la redirection de ProtectedRoute (qui renvoie vers /login
-              // dès que `user` devient null) — ici la page recharge
-              // entièrement, donc React repart de zéro directement sur "/".
-              logout();
-              window.location.href = "/";
-            }}
-
-            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--color-ink-2)] transition-all duration-200 hover:bg-[var(--color-rust-bg)] hover:text-[var(--color-rust)]"
+            type="button"
+            onClick={() => setMenuOpen(false)}
+            className="rounded-lg p-1.5 text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)] lg:hidden"
+            aria-label="Fermer le menu"
           >
-            <LogOut size={18} />
-            Déconnexion
+            <X size={20} />
           </button>
-
         </div>
 
+        {/* Role */}
+        <div className="mb-4 px-2 font-mono text-[11px] uppercase tracking-widest text-[var(--color-ink-3)]">
+          {ROLE_LABEL[user.role]}
+        </div>
+
+        {/* Menu */}
+        <nav className="space-y-1">
+          {items.map((item) => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.to === `/${user.role}`}
+              onClick={() => setMenuOpen(false)}
+              className={({ isActive }) =>
+                `flex items-center justify-between rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
+                  isActive
+                    ? "bg-[var(--color-brass-bg)] text-[var(--color-brass)] shadow-sm"
+                    : "text-[var(--color-ink)] hover:bg-[var(--color-paper-2)] hover:text-[var(--color-brass)]"
+                }`
+              }
+            >
+              <span className="flex items-center gap-3">
+                <item.icon size={18} />
+                {item.label}
+              </span>
+
+              {item.to === "/client/favoris" && favorisCount > 0 && (
+                <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-brass)] px-1.5 text-[10px] font-semibold text-white">
+                  {favorisCount > 99 ? "99+" : favorisCount}
+                </span>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
+
+      {/* Bas Sidebar */}
+      <div className="space-y-1">
+        <NavLink
+          to="/compte"
+          onClick={() => setMenuOpen(false)}
+          className={({ isActive }) =>
+            `flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-all duration-200 ${
+              isActive
+                ? "bg-[var(--color-brass-bg)] text-[var(--color-brass)]"
+                : "text-[var(--color-ink)] hover:bg-[var(--color-paper-2)] hover:text-[var(--color-brass)]"
+            }`
+          }
+        >
+          <UserCircle size={18} />
+          Mon compte
+        </NavLink>
+
+        <button
+          onClick={() => {
+            // Rechargement complet vers "/" plutôt qu'une navigation
+            // React Router : on évite ainsi toute course possible avec
+            // la redirection de ProtectedRoute (qui renvoie vers /login
+            // dès que `user` devient null) — ici la page recharge
+            // entièrement, donc React repart de zéro directement sur "/".
+            logout();
+            window.location.href = "/";
+          }}
+          className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-[var(--color-ink-2)] transition-all duration-200 hover:bg-[var(--color-rust-bg)] hover:text-[var(--color-rust)]"
+        >
+          <LogOut size={18} />
+          Déconnexion
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="flex min-h-screen flex-col bg-[var(--color-paper)] lg:flex-row">
+      {/* ================= SIDEBAR — fixe à partir de lg, tiroir en dessous ================= */}
+
+      {/* Fond semi-transparent derrière le tiroir mobile/tablette */}
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={() => setMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] flex-col justify-between overflow-y-auto border-r border-[var(--color-line)] bg-[var(--color-card)] px-4 py-6 transition-transform duration-200 ease-out lg:sticky lg:top-0 lg:z-auto lg:h-screen lg:w-64 lg:max-w-none lg:translate-x-0 ${
+          menuOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        {sidebarContent}
       </aside>
 
       {/* ================= CONTENU ================= */}
 
-      <div className="flex flex-1 flex-col">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* Barre supérieure mobile/tablette : hamburger + logo, remplace le
+            header desktop en dessous de lg (la sidebar n'est plus visible) */}
+        <div className="flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-card)] px-4 py-3 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            className="rounded-lg p-2 text-[var(--color-ink)] hover:bg-[var(--color-paper-2)]"
+            aria-label="Ouvrir le menu"
+          >
+            <Menu size={22} />
+          </button>
+          <div className="flex items-center gap-2">
+            <img src={logo} alt="ImmoVision" className="h-9 w-auto" />
+            <span className="font-display text-lg font-semibold text-[var(--color-ink)]">
+              ImmoVision
+            </span>
+          </div>
+          <NotificationBell />
+        </div>
 
-        <header className="flex items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-card)] px-8 py-4">
-
+        <header className="hidden items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-card)] px-8 py-4 lg:flex">
           <div />
 
           <div className="flex items-center gap-4">
-
             <NotificationBell />
 
             <NavLink
@@ -239,19 +266,13 @@ export default function DashboardLayout({
                 {user.prenom} {user.nom}
               </span>
             </NavLink>
-
           </div>
-
         </header>
 
-        <main className="flex-1 p-8">
-          {children}
-        </main>
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
 
         <Footer />
-
       </div>
-
     </div>
   );
 }

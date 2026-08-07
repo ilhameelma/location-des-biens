@@ -104,12 +104,12 @@ export default function PropertiesMap({
   const geoBiens = biens.filter((b) => b.latitude != null && b.longitude != null);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-[var(--color-line)]">
+    <div className="h-[380px] overflow-hidden rounded-lg border border-[var(--color-line)] sm:h-[520px]">
       <MapContainer
         center={DEFAULT_CENTER}
         zoom={DEFAULT_ZOOM}
         scrollWheelZoom
-        style={{ height: "520px", width: "100%" }}
+        style={{ height: "100%", width: "100%" }}
       >
         <TileLayer
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'

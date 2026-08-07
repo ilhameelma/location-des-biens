@@ -53,7 +53,7 @@ export default function EstimationWidget({
 
   return (
     <div className="sm:col-span-2 rounded-md border border-dashed border-[var(--color-brass)] bg-[#f4e9df]/40 p-3">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-xs font-medium text-[var(--color-brass-deep)]">
           <Sparkles size={14} />
           Suggestion de prix par IA

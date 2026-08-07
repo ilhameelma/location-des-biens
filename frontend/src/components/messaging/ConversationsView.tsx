@@ -3,7 +3,7 @@
 // liste des conversations à gauche, fil de discussion temps réel à droite.
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { MessageSquare, Send, Loader2, Star, Paperclip, FileText } from "lucide-react";
+import { MessageSquare, Send, Loader2, Star, Paperclip, FileText, ArrowLeft } from "lucide-react";
 import { api, API_BASE_URL, tokenStore, formatErrorDetail } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { useConversationSocket } from "../../lib/useConversationSocket";
@@ -288,9 +288,15 @@ export default function ConversationsView() {
         </div>
       )}
 
-      <div className="mt-6 flex h-[560px] overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-card)]">
-        {/* Liste des conversations */}
-        <div className="w-72 shrink-0 overflow-y-auto border-r border-[var(--color-line)] p-3">
+      <div className="mt-6 flex h-[70vh] max-h-[560px] overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-card)] md:h-[560px]">
+        {/* Liste des conversations — pleine largeur sur mobile tant qu'aucune
+            conversation n'est sélectionnée, masquée dès qu'on ouvre un fil ;
+            toujours visible côte à côte à partir de md */}
+        <div
+          className={`w-full shrink-0 overflow-y-auto border-r border-[var(--color-line)] p-3 md:flex md:w-72 ${
+            selectedId ? "hidden md:block" : "block"
+          }`}
+        >
           {loadingConvs ? (
             <div className="flex items-center justify-center gap-2 py-8 text-sm text-[var(--color-ink-3)]">
               <Loader2 size={16} className="animate-spin" /> Chargement…
@@ -340,8 +346,10 @@ export default function ConversationsView() {
           )}
         </div>
 
-        {/* Fil de discussion */}
-        <div className="flex flex-1 flex-col">
+        {/* Fil de discussion — masqué sur mobile tant qu'aucune conversation
+            n'est sélectionnée (pour ne pas écraser la liste), toujours
+            visible à partir de md */}
+        <div className={`flex-1 flex-col md:flex ${selectedId ? "flex" : "hidden md:flex"}`}>
           {!selectedId || !selectedConv ? (
             <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[var(--color-ink-3)]">
               <MessageSquare size={28} />
@@ -351,13 +359,23 @@ export default function ConversationsView() {
             </div>
           ) : (
             <>
-              <div className="border-b border-[var(--color-line)] px-4 py-3">
-                <div className="text-sm font-medium text-[var(--color-ink)]">
-                  {selectedConv.autre_prenom} {selectedConv.autre_nom}
+              <div className="flex items-center gap-2 border-b border-[var(--color-line)] px-4 py-3">
+                <button
+                  type="button"
+                  onClick={() => setSelectedId(null)}
+                  className="-ml-1 rounded-md p-1 text-[var(--color-ink-2)] hover:bg-[var(--color-paper-2)] md:hidden"
+                  aria-label="Retour à la liste des conversations"
+                >
+                  <ArrowLeft size={18} />
+                </button>
+                <div>
+                  <div className="text-sm font-medium text-[var(--color-ink)]">
+                    {selectedConv.autre_prenom} {selectedConv.autre_nom}
+                  </div>
+                  {selectedConv.bien_titre && (
+                    <div className="text-xs text-[var(--color-ink-3)]">À propos de « {selectedConv.bien_titre} »</div>
+                  )}
                 </div>
-                {selectedConv.bien_titre && (
-                  <div className="text-xs text-[var(--color-ink-3)]">À propos de « {selectedConv.bien_titre} »</div>
-                )}
               </div>
 
               <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto p-4">

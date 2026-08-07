@@ -32,7 +32,8 @@ export default function OwnerPaiementsPage() {
 
       <div className="mt-8 overflow-hidden rounded-lg border border-[var(--color-line)] bg-[var(--color-card)]">
         {paiements.length > 0 && (
-          <table className="w-full text-left text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px] text-left text-sm">
             <thead className="bg-[var(--color-paper-2)] font-mono text-xs uppercase tracking-wide text-[var(--color-ink-2)]">
               <tr>
                 <th className="px-4 py-3">Montant</th>
@@ -58,6 +59,7 @@ export default function OwnerPaiementsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
