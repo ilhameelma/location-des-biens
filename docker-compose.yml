@@ -1,15 +1,19 @@
 # ============================================================
 # SmartRent Platform — docker-compose.yml
-# Couvre : PostgreSQL (app + Airflow), MinIO, Kafka/Zookeeper,
-# Spark, Airflow, et une interface web pour Kafka.
+# VERSION COMPLÈTE (Phase 5, étape 20) : plus AUCUN service ne tourne hors
+# Docker. backend / ml_service / frontend / nginx (reverse-proxy) ont été
+# ajoutés à la stack déjà existante (postgres, minio, kafka, airflow,
+# elasticsearch, spark).
 #
-# Ce fichier ne contient PAS encore le back-end / front-end :
-# ils restent en développement local (Phase 2) et seront ajoutés
-# ici en Phase 5 (conteneurisation finale).
+# Avant de lancer :
+#   1. cp .env.example .env         puis adapte DOMAIN / PUBLIC_API_URL
+#   2. cp backend/.env.docker.example backend/.env
+#   3. cp ml_service/.env.docker.example ml_service/.env
+#      (adapte les mots de passe/secrets dans ces 3 fichiers)
 #
-# Démarrage : docker-compose up -d
-# Arrêt     : docker-compose down
-# Arrêt + suppression des volumes : docker-compose down -v
+# Démarrage : docker compose up -d --build
+# Arrêt     : docker compose down
+# Arrêt + suppression des volumes (⚠️ perte des données) : docker compose down -v
 # ============================================================
 
 services:
@@ -24,12 +28,13 @@ services:
     environment:
       POSTGRES_DB: smartrent_db
       POSTGRES_USER: smartrent
-      POSTGRES_PASSWORD: smartrent_pwd
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-smartrent_pwd}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/smartrent_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./postgres/warehouse_schema.sql:/docker-entrypoint-initdb.d/02_warehouse_schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U smartrent -d smartrent_db"]
       interval: 5s
@@ -40,7 +45,7 @@ services:
 
   # ------------------------------------------------------------
   # Stockage objet (photos de biens, documents contractuels,
-  # et maintenant le data lake — étape 12)
+  # et data lake — étape 12)
   # ------------------------------------------------------------
   minio:
     image: minio/minio:latest
@@ -48,10 +53,10 @@ services:
     restart: unless-stopped
     environment:
       MINIO_ROOT_USER: smartrent_admin
-      MINIO_ROOT_PASSWORD: smartrent_minio_pwd
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-smartrent_minio_pwd}
     ports:
-      - "9000:9000"   # API compatible S3
-      - "9001:9001"   # Console web (http://localhost:9001)
+      - "9000:9000"   # API compatible S3 (aussi proxifié via Nginx /smartrent-photos/)
+      - "9001:9001"   # Console web (http://<IP_VM>:9001) — à fermer publiquement en prod (NSG/ufw)
     command: server /data --console-address ":9001"
     volumes:
       - minio_data:/data
@@ -64,11 +69,7 @@ services:
       - smartrent_net
 
   # ------------------------------------------------------------
-  # Crée automatiquement le bucket du data lake au démarrage
-  # (étape 12) — même logique que storage.ensure_bucket() côté
-  # back-end pour le bucket "smartrent-photos" (étape 7), mais ici
-  # via le client officiel MinIO (mc), car ce bucket n'est pas géré
-  # par l'application FastAPI.
+  # Crée automatiquement le bucket du data lake au démarrage (étape 12)
   # ------------------------------------------------------------
   minio-init:
     image: minio/mc:latest
@@ -80,7 +81,7 @@ services:
     command:
       - -c
       - |
-        mc alias set local http://minio:9000 smartrent_admin smartrent_minio_pwd &&
+        mc alias set local http://minio:9000 smartrent_admin ${MINIO_ROOT_PASSWORD:-smartrent_minio_pwd} &&
         mc mb --ignore-existing local/smartrent-datalake &&
         echo "Bucket 'smartrent-datalake' prêt."
     networks:
@@ -100,8 +101,7 @@ services:
       - smartrent_net
 
   # ------------------------------------------------------------
-  # Broker de messages (événements métier : annonce, réservation,
-  # paiement...) — étape 10 du cahier des charges
+  # Broker de messages (étape 10)
   # ------------------------------------------------------------
   kafka:
     image: confluentinc/cp-kafka:7.6.0
@@ -110,8 +110,8 @@ services:
     depends_on:
       - zookeeper
     ports:
-      - "9092:9092"       # accès depuis l'hôte (back-end en local)
-      - "29092:29092"     # accès interne entre conteneurs
+      - "9092:9092"
+      - "29092:29092"
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -122,17 +122,12 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
     volumes:
-      # Étape 13 : sans ce volume, Kafka perdait tous ses topics/offsets à
-      # chaque `docker-compose down`, alors que le checkpoint Spark (sur
-      # l'hôte, lui) survivait — désynchronisation qui faisait planter le
-      # pipeline avec "Set(...) are gone. Some data may have been missed".
       - kafka_data:/var/lib/kafka/data
     networks:
       - smartrent_net
 
   # ------------------------------------------------------------
-  # Interface web pour visualiser les topics Kafka (pratique pour
-  # déboguer / démontrer le pipeline pendant la soutenance)
+  # Interface web pour visualiser les topics Kafka
   # ------------------------------------------------------------
   kafka-ui:
     image: provectuslabs/kafka-ui:latest
@@ -141,30 +136,21 @@ services:
     depends_on:
       - kafka
     ports:
-      - "8082:8080"    # http://localhost:8082
+      - "8082:8080"
     environment:
       KAFKA_CLUSTERS_0_NAME: smartrent
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
       KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     networks:
       - smartrent_net
-  # ============================================================
-# Étape 18 — Recherche avancée (Elasticsearch)
-# ============================================================
-# À ajouter dans la section `services:` de ton docker-compose.yml existant
-# (au même niveau que postgres, minio, kafka, airflow...).
-#
-# Choix de config pour un contexte PFE / poste de développement local :
-#   - single-node : pas de cluster, inutile pour la volumétrie du projet
-#   - xpack.security.enabled=false : pas d'authentification/TLS à gérer en
-#     local (à ne PAS faire tel quel en production — mentionné comme
-#     limite connue dans le rapport de PFE, cf. README_PHASE4_ETAPE18.md)
-#   - mémoire JVM plafonnée à 512m : suffisant pour quelques milliers de
-#     biens, évite qu'Elasticsearch monopolise la RAM du poste de dev
 
+  # ------------------------------------------------------------
+  # Étape 18 — Recherche avancée (Elasticsearch)
+  # ------------------------------------------------------------
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.15.1
     container_name: smartrent_elasticsearch
+    restart: unless-stopped
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -178,26 +164,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
-# ------------------------------------------------------------
-# À ajouter dans la section `volumes:` de premier niveau (à côté de
-# postgres_data, kafka_data, etc.) :
-#
-#   elasticsearch_data:
-#
-# ------------------------------------------------------------
-
-# Vérification une fois démarré :
-#   docker compose up -d elasticsearch
-#   curl http://localhost:9200          -> doit répondre avec cluster_name etc.
-#   curl http://localhost:9200/_cat/indices?v   -> liste des index (vide au début)
+    networks:
+      - smartrent_net
 
   # ------------------------------------------------------------
   # Spark — étape 11 (ETL/traitement)
-  # Image officielle Apache Spark. Un seul conteneur "prêt à l'emploi"
-  # (pas de cluster master/worker, inutile pour la volumétrie d'un PFE) :
-  # il reste en veille (tail -f /dev/null) et on y lance les jobs via
-  # `docker exec` + `spark-submit`. Sera piloté par Airflow à l'étape 13.
   # ------------------------------------------------------------
   spark:
     image: apache/spark:3.4.1
@@ -219,9 +190,7 @@ services:
       - smartrent_net
 
   # ------------------------------------------------------------
-  # Base de métadonnées dédiée à Airflow (séparée de smartrent_db
-  # pour ne jamais mélanger données applicatives et données
-  # d'orchestration)
+  # Base de métadonnées Airflow
   # ------------------------------------------------------------
   postgres_airflow:
     image: postgres:16
@@ -242,11 +211,10 @@ services:
       - smartrent_net
 
   # ------------------------------------------------------------
-  # Initialisation Airflow (créé la base + l'utilisateur admin,
-  # puis s'arrête — ce n'est pas un service qui tourne en continu)
+  # Initialisation Airflow
   # ------------------------------------------------------------
   airflow-init:
-    build: ./airflow   # étape 13 : image custom (CLI docker installé, voir airflow/Dockerfile)
+    build: ./airflow
     container_name: smartrent_airflow_init
     depends_on:
       postgres_airflow:
@@ -254,11 +222,6 @@ services:
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
       AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow_pwd@postgres_airflow/airflow
-      # Doit être IDENTIQUE sur airflow-init / airflow-webserver / airflow-scheduler :
-      # sert à signer les jetons utilisés par le webserver pour aller lire les
-      # logs des tâches sur le scheduler. Une valeur différente par conteneur
-      # (ce qui arrive si elle n'est pas fixée ici) casse l'affichage des logs
-      # avec une erreur "InvalidSignatureError" / 403.
       AIRFLOW__WEBSERVER__SECRET_KEY: "smartrent_pfe_secret_key_change_if_needed"
     entrypoint: /bin/bash
     command:
@@ -267,7 +230,7 @@ services:
         airflow db migrate &&
         airflow users create \
           --username admin \
-          --password admin \
+          --password ${AIRFLOW_ADMIN_PASSWORD:-admin} \
           --firstname Admin \
           --lastname SmartRent \
           --role Admin \
@@ -276,7 +239,7 @@ services:
       - smartrent_net
 
   # ------------------------------------------------------------
-  # Interface web Airflow (http://localhost:8081, admin/admin)
+  # Interface web Airflow (http://<IP_VM>:8081)
   # ------------------------------------------------------------
   airflow-webserver:
     build: ./airflow
@@ -298,8 +261,7 @@ services:
       - smartrent_net
 
   # ------------------------------------------------------------
-  # Ordonnanceur Airflow — déclenche les jobs Spark planifiés
-  # (nettoyage nocturne, agrégation vers le data warehouse)
+  # Ordonnanceur Airflow
   # ------------------------------------------------------------
   airflow-scheduler:
     build: ./airflow
@@ -313,10 +275,6 @@ services:
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
       AIRFLOW__WEBSERVER__SECRET_KEY: "smartrent_pfe_secret_key_change_if_needed"
     command: scheduler
-    # étape 13 : le scheduler exécute les tâches (LocalExecutor) et doit donc
-    # pouvoir lancer `docker exec smartrent_spark ...` depuis le DAG — d'où le
-    # socket Docker de l'hôte monté ci-dessous, et l'exécution en root pour
-    # y avoir accès sans complication de permissions/groupe.
     user: "0:0"
     volumes:
       - ./airflow/dags:/opt/airflow/dags
@@ -324,32 +282,90 @@ services:
     networks:
       - smartrent_net
 
+  # ============================================================
+  # NOUVEAU (Phase 5, étape 20) — plus rien hors Docker
+  # ============================================================
+
   # ------------------------------------------------------------
-  # (À activer en Phase 5 uniquement)
+  # Back-end FastAPI (Phase 2 + IA/carto/recherche) — dockerisé
   # ------------------------------------------------------------
-  # backend:
-  #   build: ./backend
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     DB_HOST: postgres
-  #     KAFKA_BROKER: kafka:29092
-  #     MINIO_ENDPOINT: minio:9000
-  #   depends_on:
-  #     - postgres
-  #     - kafka
-  #     - minio
-  #   networks:
-  #     - smartrent_net
-  #
-  # frontend:
-  #   build: ./frontend
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - backend
-  #   networks:
-  #     - smartrent_net
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: smartrent_backend
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    networks:
+      - smartrent_net
+    # Pas de "ports:" exposé à l'hôte : uniquement joignable via le
+    # reverse-proxy nginx (/api/) — cohérent avec la checklist sécurité
+    # existante (README_DEPLOIEMENT_AZURE.md, §11)
+
+  # ------------------------------------------------------------
+  # Micro-service IA (étape 16) — dockerisé
+  # NOTE : le dossier local peut s'appeler "ml" ou "ml_service" chez toi
+  # (adapte "context:" ci-dessous en conséquence) — le NOM DU SERVICE
+  # Docker, lui, doit rester "ml_service" car c'est ce nom que le backend
+  # utilise pour le joindre (ML_SERVICE_URL=http://ml_service:8001).
+  # ------------------------------------------------------------
+  ml_service:
+    build:
+      context: ./ml_service      # <- renomme en "./ml" si ton dossier s'appelle ainsi
+      dockerfile: Dockerfile
+    container_name: smartrent_ml_service
+    restart: unless-stopped
+    env_file:
+      - ./ml_service/.env
+    depends_on:
+      - backend
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Front-end React (Vite build servi par Nginx) — dockerisé
+  # ------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${PUBLIC_API_URL:-http://localhost/api}
+    container_name: smartrent_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - smartrent_net
+
+  # ------------------------------------------------------------
+  # Reverse proxy — point d'entrée UNIQUE de la plateforme (80/443)
+  # ------------------------------------------------------------
+  nginx:
+    image: nginx:alpine
+    container_name: smartrent_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/certbot/conf:/etc/letsencrypt
+      - ./nginx/certbot/www:/var/www/certbot
+    depends_on:
+      - frontend
+      - backend
+      - minio
+    networks:
+      - smartrent_net
 
 networks:
   smartrent_net:

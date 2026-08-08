@@ -11,7 +11,6 @@ import {
   Sparkles,
   Building2,
   Key,
-  Users,
   Mail,
   Phone,
   Send,

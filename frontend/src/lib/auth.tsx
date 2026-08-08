@@ -16,6 +16,9 @@ interface RegisterPayload {
   password: string;
   telephone?: string;
   role: Role;
+  raison_sociale?: string;
+  numero_rc?: string;
+  numero_carte_pro?: string;
 }
 
 interface ProfileUpdatePayload {
@@ -23,8 +26,10 @@ interface ProfileUpdatePayload {
   prenom?: string;
   email?: string;
   telephone?: string;
+  raison_sociale?: string;
+  numero_rc?: string;
+  numero_carte_pro?: string;
 }
-
 interface RegisterResponse {
   message: string;
   email: string;
