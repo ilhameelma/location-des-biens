@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, Sparkles, LayoutGrid, Map as MapIcon, SlidersHorizontal } from "lucide-react";
+import { Search, Sparkles, LayoutGrid, Map as MapIcon, SlidersHorizontal, ChevronDown } from "lucide-react";
 import PropertyCard from "../../components/ui/PropertyCard";
 import SimilarPropertiesPanel from "../../components/ia/SimilarPropertiesPanel";
 import PropertiesMap from "../../components/map/PropertiesMap";
@@ -412,10 +412,19 @@ export default function SearchPage() {
               <button
                 type="button"
                 onClick={() => handleToggleSimilar(b)}
-                className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-[var(--color-brass)] py-1.5 text-xs font-medium text-[var(--color-brass-deep)] hover:bg-[#f4e9df]/40"
+                aria-expanded={similarFor === b.id}
+                className={`mt-2 flex w-full items-center justify-center gap-1.5 rounded-md border py-2 text-xs font-semibold transition-colors ${
+                  similarFor === b.id
+                    ? "border-[var(--color-brass)] bg-[var(--color-brass-bg)] text-[var(--color-brass-deep)]"
+                    : "border-[var(--color-line)] bg-[var(--color-card)] text-[var(--color-ink-2)] hover:border-[var(--color-brass)] hover:bg-[var(--color-brass-bg)] hover:text-[var(--color-brass-deep)]"
+                }`}
               >
-                <Sparkles size={12} />
+                <Sparkles size={14} />
                 {similarFor === b.id ? "Masquer les biens similaires" : "Voir des biens similaires"}
+                <ChevronDown
+                  size={14}
+                  className={`transition-transform ${similarFor === b.id ? "rotate-180" : ""}`}
+                />
               </button>
               {similarFor === b.id && similarLoading && (
                 <p className="mt-2 text-xs text-[var(--color-ink-3)]">Recherche en cours…</p>

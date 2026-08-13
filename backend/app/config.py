@@ -9,7 +9,20 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24  # 24h
+    # JWT (étape 5 — Authentification et sécurité)
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24  # 24h
 
+    # Cookie httpOnly portant le token JWT (remplace le localStorage côté
+    # frontend — inaccessible en JavaScript, donc protégé contre le vol par
+    # XSS). cookie_secure doit être True dès que le site est servi en HTTPS
+    # (VM avec Let's Encrypt) et peut rester False en HTTP local (mkcert ou
+    # localhost simple) — un cookie "Secure" est refusé par le navigateur
+    # sur une connexion non chiffrée.
+    auth_cookie_name: str = "smartrent_token"
+    cookie_secure: bool = False  # -> True en prod HTTPS (backend/.env)
+    cookie_samesite: str = "lax"  # "lax" suffit en same-origin (via Nginx)
     # CORS — origine du front-end React (Vite)
     frontend_origin: str = "http://localhost:5173"
 
@@ -145,6 +158,14 @@ class Settings(BaseSettings):
     # Voir POST /reservations/instantanee et POST /reservations/{id}/annuler
     # dans routers/reservations.py.
     delai_annulation_heures: int = 24
+
+    # ============================================================
+    # Formulaire de contact public (landing page)
+    # ============================================================
+    # Adresse qui reçoit les messages envoyés depuis le formulaire "Contact"
+    # de la landing page (POST /api/contact) — réutilise la config SMTP
+    # ci-dessus pour l'envoi réel.
+    contact_email: str = "immovision260@gmail.com"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

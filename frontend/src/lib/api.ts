@@ -1,38 +1,25 @@
 // Client API centralisé pour consommer le back-end FastAPI (étape 4 du cahier des charges).
-// Le token JWT (étape 5 — Auth) est injecté automatiquement dans chaque requête.
+// L'authentification passe désormais par un cookie httpOnly (posé par
+// /auth/login) transmis automatiquement par le navigateur à chaque requête
+// (credentials: "include") — plus de token manipulé en JavaScript, donc plus
+// de risque de vol par XSS via localStorage.
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000/api";
 
-const TOKEN_KEY = "smartrent_token";
-
-export const tokenStore = {
-  get: () => localStorage.getItem(TOKEN_KEY),
-  set: (token: string) => localStorage.setItem(TOKEN_KEY, token),
-  clear: () => localStorage.removeItem(TOKEN_KEY),
-};
-
 // Construit l'URL WebSocket correspondant à un chemin API donné, en réutilisant
-// le même host/port que l'API REST (http -> ws, https -> wss).
-// Le token JWT est transmis en query param : un navigateur ne peut pas ajouter
-// de header Authorization à une connexion WebSocket.
+// le même host/port que l'API REST (http -> ws, https -> wss). Le cookie
+// httpOnly est envoyé automatiquement par le navigateur au handshake
+// WebSocket (même origine, via Nginx) — aucun token à ajouter en query param.
 export function wsUrl(path: string): string {
-  const token = tokenStore.get();
   const httpUrl = new URL(`${API_BASE_URL}${path}`);
   httpUrl.protocol = httpUrl.protocol === "https:" ? "wss:" : "ws:";
-  if (token) httpUrl.searchParams.set("token", token);
   return httpUrl.toString();
 }
 
 interface RequestOptions extends RequestInit {
-  auth?: boolean; // ajoute le header Authorization si true (défaut: true)
+  auth?: boolean; // conservé pour compat d'API, sans effet désormais (le cookie part toujours)
 }
 
-// Met en forme le champ `detail` renvoyé par FastAPI, qui peut être :
-// - une chaîne simple (HTTPException classique) → utilisée telle quelle
-// - un tableau d'erreurs de validation Pydantic (422) → chaque élément a la
-//   forme { loc: [...], msg: "...", type: "..." } → on les joint en texte lisible
-// - autre chose d'inattendu → repli sur un message générique plutôt que
-//   d'afficher "[object Object]" côté UI
 export function formatErrorDetail(detail: unknown, status: number): string {
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
@@ -54,14 +41,13 @@ export function formatErrorDetail(detail: unknown, status: number): string {
 }
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { auth = true, headers, ...rest } = options;
-  const token = auth ? tokenStore.get() : null;
+  const { headers, ...rest } = options;
 
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...rest,
+    credentials: "include", // envoie/reçoit le cookie httpOnly sur chaque requête
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...headers,
     },
   });
@@ -97,23 +83,3 @@ export const api = {
     }),
   del: <T>(path: string) => request<T>(path, { method: "DELETE" }),
 };
-
-// --- Endpoints réels côté FastAPI (backend/app/routers) ---
-// POST   /auth/register, /auth/login   -> TokenResponse / UtilisateurOut
-// GET    /auth/me                       -> UtilisateurOut
-// GET    /biens?ville=&type_bien=&prix_max=  -> BienOut[]
-// POST   /biens                          -> BienOut (proprietaire)
-// GET    /biens/me/annonces              -> BienOut[] (proprietaire)
-// PATCH  /biens/{id}                     -> BienOut
-// POST   /reservations                   -> ReservationOut (client)
-// GET    /reservations/me | /recues      -> ReservationOut[]
-// PATCH  /reservations/{id}/statut       -> ReservationOut
-// GET    /contrats/me                    -> ContratOut[]
-// GET    /paiements/me                   -> PaiementOut[]
-// POST   /paiements                      -> PaiementOut (client)
-// POST   /avis                           -> AvisOut (client)
-// POST   /reclamations, GET /reclamations (admin)
-// GET/POST /conversations                -> ConversationOut[] / ConversationOut (POST: client)
-// GET/POST /conversations/{id}/messages   -> MessageOut[] / MessageOut
-// WS       /conversations/ws/{id}?token=  -> canal temps réel (étape 8)
-// GET    /notifications/me               -> NotificationOut[]

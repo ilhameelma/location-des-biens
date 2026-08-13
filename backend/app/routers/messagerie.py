@@ -318,47 +318,23 @@ async def send_message_fichier(
 async def websocket_conversation(
     websocket: WebSocket,
     conversation_id: uuid.UUID,
-    token: str = Query(...),
+    token: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    payload = decode_access_token(token)
+    # Le cookie httpOnly est envoyé automatiquement par le navigateur au
+    # handshake WebSocket (même origine, via Nginx) — le query param `token`
+    # reste accepté en repli pour compatibilité (anciens clients, tests).
+    cookie_token = websocket.cookies.get("smartrent_token")
+    effective_token = cookie_token or token
+
+    payload = decode_access_token(effective_token) if effective_token else None
     user_id = payload.get("sub") if payload else None
     user = db.get(models.Utilisateur, uuid.UUID(user_id)) if user_id else None
     if user is None:
-        await websocket.close(code=4401)  # code custom : non authentifié
+        await websocket.close(code=4401)
         return
 
     conv = db.get(models.Conversation, conversation_id)
     if not conv or user.id not in (conv.proprietaire_id, conv.client_id):
-        await websocket.close(code=4403)  # code custom : accès refusé
+        await websocket.close(code=4403)
         return
-
-    await manager.connect(conversation_id, websocket)
-    try:
-        while True:
-            data = await websocket.receive_json()
-            contenu = str(data.get("contenu", "")).strip()
-            if not contenu:
-                continue
-
-            message = models.Message(
-                conversation_id=conversation_id, expediteur_id=user.id, contenu=contenu
-            )
-            db.add(message)
-            db.commit()
-            db.refresh(message)
-
-            await manager.broadcast(
-                conversation_id,
-                {
-                    "type": "message",
-                    "id": str(message.id),
-                    "conversation_id": str(conversation_id),
-                    "expediteur_id": str(user.id),
-                    "contenu": message.contenu,
-                    "date_envoi": message.date_envoi.isoformat(),
-                    "lu": message.lu,
-                },
-            )
-    except WebSocketDisconnect:
-        manager.disconnect(conversation_id, websocket)

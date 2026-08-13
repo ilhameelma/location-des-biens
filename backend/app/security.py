@@ -5,7 +5,8 @@ from jose import jwt, JWTError
 from passlib.context import CryptContext
 
 from .config import settings
-
+import hashlib
+import secrets
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
@@ -16,7 +17,14 @@ def generate_otp_code() -> str:
     zfill(6) conserve les zéros en tête (ex. "004821")."""
     return str(secrets.randbelow(1_000_000)).zfill(6)
 
+# security.py — ajouter
 
+
+def hash_otp(code: str) -> str:
+    return hashlib.sha256(code.encode()).hexdigest()
+
+def verify_otp(code: str, hashed: str) -> bool:
+    return secrets.compare_digest(hash_otp(code), hashed)
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
 

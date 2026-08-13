@@ -4,7 +4,8 @@ import { ArrowLeft, CalendarDays, Newspaper } from "lucide-react";
 import { api } from "../lib/api";
 import type { Actualite } from "../types";
 import { resolvePhotoUrl } from "../components/ui/ImageCarousel";
-import Footer from "../components/layout/Footer";
+import SiteFooter from "../components/layout/SiteFooter";
+import PublierAnnonceButton from "../components/publish/PublierAnnonceButton";
 import logo from "../assets/logo_immo1.png";
 
 /**
@@ -45,14 +46,18 @@ export default function ActualitesPubliquesPage() {
               ImmoVision
             </span>
           </Link>
-          <button
-            type="button"
-            onClick={() => navigate("/")}
-            className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink-2)] hover:text-[var(--color-brass-deep)]"
-          >
-            <ArrowLeft size={15} />
-            Retour à l'accueil
-          </button>
+          <div className="flex items-center gap-4">
+            <PublierAnnonceButton variant="outline" className="hidden sm:inline-flex" />
+            <PublierAnnonceButton variant="icon" className="sm:hidden" />
+            <button
+              type="button"
+              onClick={() => navigate("/")}
+              className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink-2)] hover:text-[var(--color-brass-deep)]"
+            >
+              <ArrowLeft size={15} />
+              Retour à l'accueil
+            </button>
+          </div>
         </div>
       </header>
 
@@ -108,7 +113,7 @@ export default function ActualitesPubliquesPage() {
         </div>
       </main>
 
-      <Footer />
+      <SiteFooter />
     </div>
   );
 }

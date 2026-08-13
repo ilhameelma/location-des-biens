@@ -92,10 +92,13 @@ def mark_all_read(
 @router.websocket("/ws")
 async def websocket_notifications(
     websocket: WebSocket,
-    token: str = Query(...),
+    token: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    payload = decode_access_token(token)
+    cookie_token = websocket.cookies.get("smartrent_token")
+    effective_token = cookie_token or token
+
+    payload = decode_access_token(effective_token) if effective_token else None
     user_id = payload.get("sub") if payload else None
     user = db.get(models.Utilisateur, uuid.UUID(user_id)) if user_id else None
     if user is None:
@@ -103,10 +106,3 @@ async def websocket_notifications(
         return
 
     await notif_manager.connect(user.id, websocket)
-    try:
-        while True:
-            # Ce canal est purement descendant (serveur -> client) ; on
-            # attend simplement pour détecter la déconnexion du client.
-            await websocket.receive_text()
-    except WebSocketDisconnect:
-        notif_manager.disconnect(user.id, websocket)

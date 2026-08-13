@@ -1,43 +1,47 @@
 import uuid
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Cookie, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
 from . import models
+from .config import settings
 from .database import get_db
 from .security import decode_access_token
 
-# Rôles pouvant publier/gérer des annonces (biens) et donc accéder aux
-# endpoints "espace annonceur" (mes biens, demandes reçues, paiements reçus,
-# messagerie, avis clients, profil public). `proprietaire` reste le rôle
-# historique ; les 3 autres sont les profils professionnels ajoutés
-# ultérieurement (voir README_ROLES_PROFESSIONNELS.md) :
-#   - agence     : agence immobilière (peut publier pour son propre compte
-#                  ou pour le compte d'un tiers via mandant_nom/téléphone)
-#   - promoteur  : promoteur immobilier — publie exclusivement des lots
-#                  rattachés à un projet immobilier (voir routers/projets.py)
-#   - conciergerie : gère/publie des biens au nom d'un propriétaire tiers
-#                  (mandant_nom généralement renseigné, mais non forcé)
 ROLES_ANNONCEURS = ("proprietaire", "agence", "promoteur", "conciergerie")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
-
-# auto_error=False : ne lève jamais d'exception si l'en-tête Authorization est
-# absent — utilisé par les endpoints réellement publics (ex. GET /biens) qui
-# doivent rester accessibles à un visiteur non connecté (landing page...),
-# tout en restant capables d'identifier l'utilisateur s'il est bien connecté.
+# Conservé pour Swagger /docs (bouton "Authorize") et les tests Postman
+# (étape 19) qui envoient un header Authorization classique — mais en usage
+# normal depuis le frontend, c'est le cookie httpOnly qui fait foi (voir
+# _resolve_token ci-dessous), jamais accessible en JavaScript côté navigateur.
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="auth/login", auto_error=False)
 
 
+def _resolve_token(
+    header_token: str | None,
+    cookie_token: str | None,
+) -> str | None:
+    """Priorité au cookie httpOnly (flux navigateur normal) ; le header
+    Authorization reste utilisable en repli (Swagger, Postman, scripts)."""
+    return cookie_token or header_token
+
+
 def get_current_user(
-    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+    header_token: str | None = Depends(oauth2_scheme),
+    cookie_token: str | None = Cookie(default=None, alias="smartrent_token"),
+    db: Session = Depends(get_db),
 ) -> models.Utilisateur:
     credentials_error = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Identifiants invalides ou expirés",
         headers={"WWW-Authenticate": "Bearer"},
     )
+    token = _resolve_token(header_token, cookie_token)
+    if token is None:
+        raise credentials_error
+
     payload = decode_access_token(token)
     if payload is None:
         raise credentials_error
@@ -53,15 +57,11 @@ def get_current_user(
 
 
 def get_optional_user(
-    token: str | None = Depends(oauth2_scheme_optional), db: Session = Depends(get_db)
+    header_token: str | None = Depends(oauth2_scheme_optional),
+    cookie_token: str | None = Cookie(default=None, alias="smartrent_token"),
+    db: Session = Depends(get_db),
 ) -> models.Utilisateur | None:
-    """
-    Variante de get_current_user pour les endpoints publics : renvoie
-    l'utilisateur connecté s'il y a un token valide, sinon None — sans jamais
-    lever d'erreur 401. Un token invalide/expiré est traité comme "pas de
-    token" plutôt que comme une erreur, pour ne pas casser un endpoint public
-    à cause d'un vieux token périmé traînant côté client.
-    """
+    token = _resolve_token(header_token, cookie_token)
     if not token:
         return None
     payload = decode_access_token(token)
@@ -74,8 +74,6 @@ def get_optional_user(
 
 
 def require_role(*roles: str):
-    """Dépendance factory : restreint un endpoint à un ou plusieurs rôles (admin/proprietaire/client)."""
-
     def checker(user: models.Utilisateur = Depends(get_current_user)) -> models.Utilisateur:
         if user.role not in roles:
             raise HTTPException(

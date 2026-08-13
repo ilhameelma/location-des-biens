@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client'
 import 'leaflet/dist/leaflet.css'
 import './index.css'
 import App from './App.tsx'
+import { detecterEtAppliquerModeTv } from './lib/detectTv'
+
+detecterEtAppliquerModeTv()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

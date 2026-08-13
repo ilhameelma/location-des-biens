@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Newspaper, ImagePlus, Trash2, Pencil, Eye, EyeOff, X, Check } from "lucide-react";
-import { api, API_BASE_URL, formatErrorDetail, tokenStore } from "../../lib/api";
+import { api, API_BASE_URL, formatErrorDetail } from "../../lib/api";
 import { resolvePhotoUrl } from "../../components/ui/ImageCarousel";
 import type { Actualite } from "../../types";
 
@@ -43,20 +43,18 @@ export default function ActualitesPage() {
   const uploadImage = async (actualiteId: string, file: File) => {
     const formData = new FormData();
     formData.append("image", file);
-    const token = tokenStore.get();
     const res = await fetch(`${API_BASE_URL}/actualites/${actualiteId}/image`, {
       method: "POST",
-      headers: {
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        // Pas de Content-Type ici — le navigateur génère le boundary multipart
-      },
+      credentials: "include", // envoie le cookie httpOnly
       body: formData,
+      // Pas de Content-Type ici — le navigateur génère le boundary multipart
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({}));
       throw new Error(formatErrorDetail(body.detail, res.status) || `Erreur upload image (${res.status})`);
     }
   };
+    
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

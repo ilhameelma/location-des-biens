@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { ChevronLeft, ChevronRight, ImageIcon } from "lucide-react";
 import type { PhotoBien } from "../../types";
-
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+import { API_BASE_URL } from "../../lib/api";
 
 export function resolvePhotoUrl(url: string): string {
   return url.startsWith("http://") || url.startsWith("https://") ? url : `${API_BASE_URL}${url}`;

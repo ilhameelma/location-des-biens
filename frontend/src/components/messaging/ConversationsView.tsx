@@ -4,7 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MessageSquare, Send, Loader2, Star, Paperclip, FileText, ArrowLeft } from "lucide-react";
-import { api, API_BASE_URL, tokenStore, formatErrorDetail } from "../../lib/api";
+import { api, API_BASE_URL, formatErrorDetail } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import { useConversationSocket } from "../../lib/useConversationSocket";
 import type { Avis, Conversation, Message } from "../../types";
@@ -189,14 +189,11 @@ export default function ConversationsView() {
       const formData = new FormData();
       formData.append("fichier", file);
 
-      const token = tokenStore.get();
       const res = await fetch(`${API_BASE_URL}/conversations/${selectedId}/messages/fichier`, {
         method: "POST",
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          // Pas de Content-Type ici — le navigateur le génère avec le boundary du FormData
-        },
+        credentials: "include", // envoie le cookie httpOnly, comme les autres requêtes
         body: formData,
+        // Pas de Content-Type ici — le navigateur le génère avec le boundary du FormData
       });
 
       if (!res.ok) {

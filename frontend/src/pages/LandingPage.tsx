@@ -1,5 +1,5 @@
 import { useEffect, useState, type CSSProperties, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import {
   Search,
   FileSignature,
@@ -15,8 +15,6 @@ import {
   Phone,
   Send,
   ArrowRight,
-  Menu,
-  X,
   CheckCircle2,
   Lock,
   ImageIcon,
@@ -26,13 +24,30 @@ import {
   UserCog,
   Newspaper,
   CalendarDays,
+  MessageCircle,
+  Loader2,
 } from "lucide-react";
 import { api } from "../lib/api";
 import type { Actualite, Bien } from "../types";
+
+/** Métriques publiques calculées côté back-end (GET /stats/publiques). */
+interface StatsPubliques {
+  biens_en_ligne: number;
+  villes_couvertes: number;
+  espaces_dedies: number;
+}
 import { resolvePhotoUrl } from "../components/ui/ImageCarousel";
-import { CONTACT_EMAIL } from "../components/layout/Footer";
-import logo from "../assets/logo_immo1.png";
+import { CONTACT_EMAIL } from "../components/layout/SiteFooter";
+import SiteHeader from "../components/layout/SiteHeader";
+import SiteFooter from "../components/layout/SiteFooter";
+import PublierAnnonceButton from "../components/publish/PublierAnnonceButton";
 import hero from "../assets/home6.png";
+
+// Numéro WhatsApp de contact (format international, sans espaces ni "+",
+// tel qu'exigé par l'URL wa.me) — à adapter avec le vrai numéro de la
+// plateforme. Le "+212 5 00 00 00 00" affiché ailleurs sur la page est un
+// numéro fixe indicatif ; WhatsApp nécessite un numéro mobile réel.
+const WHATSAPP_NUMBER = "212637808129";
 
 // Arc en fer à cheval (référence à l'architecture marocaine) utilisé comme
 // signature visuelle pour les images de la page — rayon horizontal large,
@@ -40,14 +55,6 @@ import hero from "../assets/home6.png";
 const ARCH_STYLE: CSSProperties = {
   borderRadius: "50% 50% 0 0 / 18% 18% 0 0",
 };
-
-const NAV_LINKS = [
-  { href: "#services", label: "Services" },
-  { href: "#catalogue", label: "Catalogue" },
-  { href: "#actualites", label: "Actualités" },
-  { href: "#apropos", label: "À propos" },
-  { href: "#contact", label: "Contact" },
-];
 
 const SERVICES = [
   {
@@ -201,11 +208,15 @@ function ListingPreviewCard({ bien }: { bien: Bien }) {
 }
 
 export default function LandingPage() {
-  const navigate = useNavigate();
-  const [menuOpen, setMenuOpen] = useState(false);
-
   const [biens, setBiens] = useState<Bien[]>([]);
   const [loadingBiens, setLoadingBiens] = useState(true);
+
+  // Étape "métriques dynamiques" : biens en ligne / villes couvertes /
+  // espaces dédiés calculés en base par le back-end (endpoint dédié,
+  // `GET /stats/publiques`) plutôt que déduits de la liste de biens
+  // affichée sur la page (qui peut être plafonnée par la recherche).
+  const [stats, setStats] = useState<StatsPubliques | null>(null);
+  const [loadingStats, setLoadingStats] = useState(true);
 
   const [actualites, setActualites] = useState<Actualite[]>([]);
   const [loadingActualites, setLoadingActualites] = useState(true);
@@ -213,7 +224,28 @@ export default function LandingPage() {
   const [contactName, setContactName] = useState("");
   const [contactEmail, setContactEmail] = useState("");
   const [contactMessage, setContactMessage] = useState("");
+  const [contactSending, setContactSending] = useState(false);
   const [contactSent, setContactSent] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+
+  // Défilement vers la section correspondante quand on arrive avec un hash
+  // dans l'URL (ex. "/#services") — nécessaire car SiteHeader.tsx (utilisé
+  // aussi depuis d'autres pages comme /publier) construit ses liens d'ancre
+  // en "/#..." plutôt qu'en simple "#..." : une navigation React Router
+  // vers une autre page ne déclenche pas de défilement automatique du
+  // navigateur, contrairement à un vrai changement de page classique.
+  useEffect(() => {
+    if (!window.location.hash) return;
+    const id = window.location.hash.slice(1);
+    const scrollToHash = () => {
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    // Léger délai pour laisser le temps aux images/sections de se mettre en
+    // page avant de calculer la position de défilement.
+    const timer = setTimeout(scrollToHash, 100);
+    return () => clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -227,6 +259,24 @@ export default function LandingPage() {
       })
       .finally(() => {
         if (active) setLoadingBiens(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .get<StatsPubliques>("/stats/publiques")
+      .then((data) => {
+        if (active) setStats(data);
+      })
+      .catch(() => {
+        if (active) setStats(null);
+      })
+      .finally(() => {
+        if (active) setLoadingStats(false);
       });
     return () => {
       active = false;
@@ -251,100 +301,35 @@ export default function LandingPage() {
     };
   }, []);
 
-  const villesCouvertes = new Set(biens.map((b) => b.ville)).size;
-
   const handleContactSubmit = (e: FormEvent) => {
     e.preventDefault();
-    const subject = encodeURIComponent(`Message depuis ImmoVision — ${contactName}`);
-    const body = encodeURIComponent(`${contactMessage}\n\n— ${contactName} (${contactEmail})`);
-    window.location.href = `mailto:contact@immovision.ma?subject=${subject}&body=${body}`;
-    setContactSent(true);
+    setContactError(null);
+    setContactSending(true);
+    api
+      .post<void>(
+        "/contact",
+        { nom: contactName, email: contactEmail, message: contactMessage },
+        { auth: false },
+      )
+      .then(() => {
+        setContactSent(true);
+        setContactName("");
+        setContactEmail("");
+        setContactMessage("");
+      })
+      .catch((err: Error) => {
+        setContactError(err.message || "Une erreur est survenue. Merci de réessayer.");
+      })
+      .finally(() => setContactSending(false));
   };
 
   return (
     <div className="min-h-screen bg-[var(--color-paper)]">
       {/* ================= NAVIGATION ================= */}
-      <header className="sticky top-0 z-40 border-b border-[var(--color-line)] bg-[var(--color-paper)]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-3">
-          <a href="#top" className="flex items-center gap-2.5">
-            <img src={logo} alt="ImmoVision" className="h-11 w-auto" />
-            <span className="font-display text-xl font-semibold text-[var(--color-ink)]">
-              ImmoVision
-            </span>
-          </a>
-
-          <nav className="hidden items-center gap-8 md:flex">
-            {NAV_LINKS.map((l) => (
-              <a
-                key={l.href}
-                href={l.href}
-                className="text-sm font-medium text-[var(--color-ink-2)] transition-colors hover:text-[var(--color-brass-deep)]"
-              >
-                {l.label}
-              </a>
-            ))}
-          </nav>
-
-          <div className="hidden items-center gap-3 md:flex">
-            <Link
-              to="/login"
-              className="rounded-md border border-[var(--color-line)] px-4 py-2 text-sm font-medium text-[var(--color-ink)] transition-colors hover:border-[var(--color-brass)] hover:text-[var(--color-brass-deep)]"
-            >
-              Connexion
-            </Link>
-            <Link
-              to="/login?mode=register"
-              className="rounded-md bg-[var(--color-brass)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-deep)]"
-            >
-              Inscription
-            </Link>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label="Ouvrir le menu"
-            aria-expanded={menuOpen}
-            className="text-[var(--color-ink)] md:hidden"
-          >
-            {menuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
-
-        {menuOpen && (
-          <div className="border-t border-[var(--color-line)] bg-[var(--color-paper)] px-6 py-4 md:hidden">
-            <nav className="flex flex-col gap-3">
-              {NAV_LINKS.map((l) => (
-                <a
-                  key={l.href}
-                  href={l.href}
-                  onClick={() => setMenuOpen(false)}
-                  className="text-sm font-medium text-[var(--color-ink-2)]"
-                >
-                  {l.label}
-                </a>
-              ))}
-              <div className="mt-2 flex gap-3">
-                <Link
-                  to="/login"
-                  className="flex-1 rounded-md border border-[var(--color-line)] px-4 py-2 text-center text-sm font-medium text-[var(--color-ink)]"
-                >
-                  Connexion
-                </Link>
-                <Link
-                  to="/login?mode=register"
-                  className="flex-1 rounded-md bg-[var(--color-brass)] px-4 py-2 text-center text-sm font-medium text-white"
-                >
-                  Inscription
-                </Link>
-              </div>
-            </nav>
-          </div>
-        )}
-      </header>
+      <SiteHeader />
 
       {/* ================= HERO ================= */}
-      <section id="top" className="mx-auto max-w-6xl px-6 pb-20 pt-16 md:pt-24">
+      <section id="top" className="mx-auto max-w-7xl px-4 pb-20 pt-16 md:pt-24">
         <div className="grid items-center gap-1 md:grid-cols-2">
           <div>
             <span className="tick-rule mb-2 inline-block font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-brass-deep)]">
@@ -380,7 +365,7 @@ export default function LandingPage() {
                   Biens en ligne
                 </dt>
                 <dd className="mt-1 font-display text-2xl text-[var(--color-ink)]">
-                  {loadingBiens ? "—" : biens.length}
+                  {loadingStats ? "—" : (stats?.biens_en_ligne ?? biens.length)}
                 </dd>
               </div>
               <div>
@@ -388,14 +373,18 @@ export default function LandingPage() {
                   Villes couvertes
                 </dt>
                 <dd className="mt-1 font-display text-2xl text-[var(--color-ink)]">
-                  {loadingBiens ? "—" : villesCouvertes}
+                  {loadingStats
+                    ? "—"
+                    : (stats?.villes_couvertes ?? new Set(biens.map((b) => b.ville)).size)}
                 </dd>
               </div>
               <div>
                 <dt className="font-mono text-[11px] uppercase tracking-widest text-[var(--color-ink-3)]">
                   Espaces dédiés
                 </dt>
-                <dd className="mt-1 font-display text-2xl text-[var(--color-ink)]">3</dd>
+                <dd className="mt-1 font-display text-2xl text-[var(--color-ink)]">
+                  {loadingStats ? "—" : (stats?.espaces_dedies ?? 3)}
+                </dd>
               </div>
             </dl>
           </div>
@@ -418,7 +407,7 @@ export default function LandingPage() {
 
       {/* ================= SERVICES ================= */}
       <section id="services" className="border-t border-[var(--color-line)] bg-[var(--color-card)] py-20">
-        <div className="mx-auto max-w-6xl px-6">
+        <div className="mx-auto max-w-7xl px-4">
           <span className="tick-rule inline-block font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-brass-deep)]">
             Services
           </span>
@@ -445,7 +434,7 @@ export default function LandingPage() {
 
       {/* ================= CATALOGUE ================= */}
       <section id="catalogue" className="py-20">
-        <div className="mx-auto max-w-6xl px-6">
+        <div className="mx-auto max-w-7xl px-4">
           <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
               <span className="tick-rule inline-block font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-brass-deep)]">
@@ -473,16 +462,12 @@ export default function LandingPage() {
           ) : biens.length === 0 ? (
             <div className="mt-10 rounded-lg border border-dashed border-[var(--color-line)] p-12 text-center">
               <p className="text-sm text-[var(--color-ink-2)]">
-                Aucune annonce publiée pour le moment. Créez un compte propriétaire pour
+                Aucune annonce publiée pour le moment. Créez un compte professionnel pour
                 publier la première.
               </p>
-              <Link
-                to="/login?mode=register"
-                className="mt-4 inline-flex items-center gap-2 rounded-md bg-[var(--color-brass)] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-deep)]"
-              >
-                Publier une annonce
-                <ArrowRight size={15} />
-              </Link>
+              <div className="mt-4 flex justify-center">
+                <PublierAnnonceButton variant="solid" />
+              </div>
             </div>
           ) : (
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -501,7 +486,7 @@ export default function LandingPage() {
       {/* ================= ACTUALITÉS ================= */}
       {(loadingActualites || actualites.length > 0) && (
         <section id="actualites" className="border-t border-[var(--color-line)] bg-[var(--color-card)] py-20">
-          <div className="mx-auto max-w-6xl px-6">
+          <div className="mx-auto max-w-7xl px-4">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <span className="tick-rule inline-block font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-brass-deep)]">
@@ -579,7 +564,7 @@ export default function LandingPage() {
 
       {/* ================= À PROPOS ================= */}
       <section id="apropos" className="border-t border-[var(--color-line)] bg-[var(--color-card)] py-20">
-        <div className="mx-auto max-w-6xl px-6">
+        <div className="mx-auto max-w-7xl px-4">
           <div className="grid gap-12 md:grid-cols-2">
             <div>
               <span className="tick-rule inline-block font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-brass-deep)]">
@@ -637,7 +622,7 @@ export default function LandingPage() {
 
       {/* ================= CONTACT ================= */}
       <section id="contact" className="py-20">
-        <div className="mx-auto max-w-6xl px-6">
+        <div className="mx-auto max-w-7xl px-4">
           <span className="tick-rule inline-block font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-brass-deep)]">
             Contact
           </span>
@@ -648,22 +633,33 @@ export default function LandingPage() {
           <div className="mt-10 grid gap-10 md:grid-cols-[1fr_1.3fr]">
             <div className="space-y-5">
               <a
-                href="mailto:contact@immovision.ma"
+                href={`mailto:${CONTACT_EMAIL}`}
                 className="flex items-center gap-3 text-sm text-[var(--color-ink-2)] transition-colors hover:text-[var(--color-brass-deep)]"
               >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-brass-bg)] text-[var(--color-brass-deep)]">
                   <Mail size={17} />
                 </span>
-                immovision260@gmail.com
+                {CONTACT_EMAIL}
               </a>
               <a
-                href="tel:+212500000000"
+                href="tel:+212637808129"
                 className="flex items-center gap-3 text-sm text-[var(--color-ink-2)] transition-colors hover:text-[var(--color-brass-deep)]"
               >
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-brass-bg)] text-[var(--color-brass-deep)]">
                   <Phone size={17} />
                 </span>
-                +212 5 00 00 00 00
+                +212 637808129
+              </a>
+              <a
+                href={`https://wa.me/${WHATSAPP_NUMBER}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 text-sm text-[var(--color-ink-2)] transition-colors hover:text-[var(--color-sage)]"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-sage-bg)] text-[var(--color-sage)]">
+                  <MessageCircle size={17} />
+                </span>
+                Discuter sur WhatsApp
               </a>
               <div className="flex items-center gap-3 text-sm text-[var(--color-ink-2)]">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--color-brass-bg)] text-[var(--color-brass-deep)]">
@@ -682,9 +678,10 @@ export default function LandingPage() {
                   <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Nom</label>
                   <input
                     required
+                    disabled={contactSending}
                     value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
-                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)] focus:ring-1 focus:ring-[var(--color-brass)]"
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)] focus:ring-1 focus:ring-[var(--color-brass)] disabled:opacity-60"
                   />
                 </div>
                 <div>
@@ -692,9 +689,10 @@ export default function LandingPage() {
                   <input
                     required
                     type="email"
+                    disabled={contactSending}
                     value={contactEmail}
                     onChange={(e) => setContactEmail(e.target.value)}
-                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)] focus:ring-1 focus:ring-[var(--color-brass)]"
+                    className="w-full rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)] focus:ring-1 focus:ring-[var(--color-brass)] disabled:opacity-60"
                   />
                 </div>
               </div>
@@ -702,21 +700,35 @@ export default function LandingPage() {
               <textarea
                 required
                 rows={4}
+                disabled={contactSending}
                 value={contactMessage}
                 onChange={(e) => setContactMessage(e.target.value)}
-                className="w-full resize-none rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)] focus:ring-1 focus:ring-[var(--color-brass)]"
+                className="w-full resize-none rounded-md border border-[var(--color-line)] px-3 py-2 text-sm outline-none focus:border-[var(--color-brass)] focus:ring-1 focus:ring-[var(--color-brass)] disabled:opacity-60"
               />
               <button
                 type="submit"
-                className="mt-4 inline-flex items-center gap-2 rounded-md bg-[var(--color-brass)] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-deep)]"
+                disabled={contactSending}
+                className="mt-4 inline-flex items-center gap-2 rounded-md bg-[var(--color-brass)] px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-[var(--color-brass-deep)] disabled:cursor-not-allowed disabled:opacity-70"
               >
-                <Send size={15} />
-                Envoyer le message
+                {contactSending ? (
+                  <>
+                    <Loader2 size={15} className="animate-spin" />
+                    Envoi en cours…
+                  </>
+                ) : (
+                  <>
+                    <Send size={15} />
+                    Envoyer le message
+                  </>
+                )}
               </button>
               {contactSent && (
                 <p className="mt-3 text-xs text-[var(--color-sage)]">
-                  Votre messagerie s'est ouverte pour finaliser l'envoi.
+                  Message envoyé — nous vous répondrons rapidement à {contactEmail || "votre adresse"}.
                 </p>
+              )}
+              {contactError && (
+                <p className="mt-3 text-xs text-[var(--color-rust)]">{contactError}</p>
               )}
             </form>
           </div>
@@ -724,41 +736,7 @@ export default function LandingPage() {
       </section>
 
       {/* ================= FOOTER ================= */}
-      <footer className="border-t border-[var(--color-line)] bg-[var(--color-ink)] py-12 text-[#cfcac2]">
-        <div className="mx-auto max-w-6xl px-6">
-          <div className="flex flex-wrap items-center justify-between gap-6">
-            <div className="flex items-center gap-2.5">
-              <img src={logo} alt="ImmoVision" className="h-9 w-auto" />
-              <span className="font-display text-lg text-white">ImmoVision</span>
-            </div>
-            <nav className="flex flex-wrap gap-6 text-sm">
-              {NAV_LINKS.map((l) => (
-                <a key={l.href} href={l.href} className="transition-colors hover:text-white">
-                  {l.label}
-                </a>
-              ))}
-              <button
-                type="button"
-                onClick={() => navigate("/login")}
-                className="transition-colors hover:text-white"
-              >
-                Connexion
-              </button>
-            </nav>
-          </div>
-          <div className="mt-8 flex flex-col gap-2 border-t border-white/10 pt-6 text-xs sm:flex-row sm:items-center sm:justify-between">
-            <span>© {new Date().getFullYear()} ImmoVision L'intelligence au service de l'immobilier.</span>
-            <a
-              href={`mailto:${CONTACT_EMAIL}`}
-              className="flex items-center gap-1.5 transition-colors hover:text-white"
-            >
-              <Mail size={13} />
-              {CONTACT_EMAIL}
-            </a>
-            <span>Données personnelles traitées conformément à la loi 09-08.</span>
-          </div>
-        </div>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, Link } from "react-router-dom";
 import {
   Building2,
   LayoutGrid,
@@ -25,7 +25,8 @@ import { useAuth } from "../../lib/auth";
 import { useFavorisCount } from "../../lib/useFavorisCount";
 import type { Role } from "../../types";
 import NotificationBell from "./NotificationBell";
-import Footer from "./Footer";
+import SiteFooter from "./SiteFooter";
+import PublierAnnonceButton from "../publish/PublierAnnonceButton";
 import logo from "../../assets/logo_immo1.png";
 
 interface NavItem {
@@ -114,12 +115,12 @@ export default function DashboardLayout({
       <div>
         {/* Logo */}
         <div className="mb-8 flex items-center justify-between gap-3 px-2">
-          <div className="flex items-center gap-3">
-            <img src={logo} alt="ImmoVision" className="h-14 w-auto lg:h-20" />
+          <Link to="/" className="flex items-center gap-3" aria-label="Retour à l'accueil">
+            <img src={logo} alt="ImmoVision" className="h-14 w-auto lg:h-28" />
             <span className="font-display text-xl font-semibold text-[var(--color-ink)] lg:text-2xl">
-              ImmoVision
+              
             </span>
-          </div>
+          </Link>
           {/* Bouton de fermeture du tiroir — visible uniquement en dessous de lg */}
           <button
             type="button"
@@ -238,19 +239,23 @@ export default function DashboardLayout({
           >
             <Menu size={22} />
           </button>
-          <div className="flex items-center gap-2">
+          <Link to="/" className="flex items-center gap-2" aria-label="Retour à l'accueil">
             <img src={logo} alt="ImmoVision" className="h-9 w-auto" />
             <span className="font-display text-lg font-semibold text-[var(--color-ink)]">
               ImmoVision
             </span>
+          </Link>
+          <div className="flex items-center gap-1">
+            {user.role === "client" && <PublierAnnonceButton variant="icon" />}
+            <NotificationBell />
           </div>
-          <NotificationBell />
         </div>
 
         <header className="hidden items-center justify-between border-b border-[var(--color-line)] bg-[var(--color-card)] px-8 py-4 lg:flex">
           <div />
 
           <div className="flex items-center gap-4">
+            {user.role === "client" && <PublierAnnonceButton variant="outline" />}
             <NotificationBell />
 
             <NavLink
@@ -271,7 +276,7 @@ export default function DashboardLayout({
 
         <main className="flex-1 p-4 sm:p-6 lg:p-8">{children}</main>
 
-        <Footer />
+        <SiteFooter />
       </div>
     </div>
   );

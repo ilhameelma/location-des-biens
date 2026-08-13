@@ -20,6 +20,8 @@ from .routers import (
     recherches,
     projets,
     actualites,
+    stats,
+    contact,
 )
 
 # Crée les tables si elles n'existent pas encore
@@ -103,6 +105,8 @@ app.include_router(ia.router, prefix="/api")
 app.include_router(recherches.router, prefix="/api")
 app.include_router(projets.router, prefix="/api")
 app.include_router(actualites.router, prefix="/api")
+app.include_router(stats.router, prefix="/api")
+app.include_router(contact.router, prefix="/api")
 
 
 @app.get("/api/health")

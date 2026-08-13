@@ -128,3 +128,43 @@
     z-index: 1000 !important;
   }
 }
+
+/* ============================================================
+   Mode TV — activé automatiquement quand l'application détecte un
+   navigateur de Smart TV (voir src/lib/detectTv.ts : LG webOS, Samsung
+   Tizen, Android/Google TV, Fire TV, HbbTV, etc.), ou manuellement via
+   l'URL "?tv=1" pour tester sans télé physique.
+
+   Principe : "zoom" (et non "transform: scale") sur <body>, pour un
+   agrandissement de type zoom navigateur — texte, boutons, icônes,
+   espacements, largeurs de conteneurs (tout étant en unités Tailwind
+   relatives) grossissent ensemble, sans casser la mise en page ni la
+   zone de défilement (contrairement à transform: scale, purement visuel).
+   "zoom" est bien supporté par les navigateurs Chromium/WebKit qui
+   équipent la quasi-totalité des Smart TV du marché.
+
+   Paliers par largeur d'écran : un peu plus fort à mesure que l'écran
+   est grand (TV 1080p vs 4K), pour rester confortable à lire depuis un
+   canapé, à plusieurs mètres de distance ("interface 10 pieds").
+   ============================================================ */
+html.is-tv body {
+  zoom: 1.2;
+}
+
+@media (min-width: 1600px) {
+  html.is-tv body {
+    zoom: 1.35;
+  }
+}
+
+@media (min-width: 2400px) {
+  html.is-tv body {
+    zoom: 1.6;
+  }
+}
+
+/* Focus clavier/télécommande plus visible à distance */
+html.is-tv :focus-visible {
+  outline: 3px solid var(--color-brass);
+  outline-offset: 3px;
+}

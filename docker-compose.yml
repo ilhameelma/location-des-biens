@@ -54,6 +54,8 @@ services:
     environment:
       MINIO_ROOT_USER: smartrent_admin
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-smartrent_minio_pwd}
+      MINIO_KMS_SECRET_KEY: ${MINIO_KMS_SECRET_KEY}
+      MINIO_KMS_AUTO_ENCRYPTION: "on"
     ports:
       - "9000:9000"   # API compatible S3 (aussi proxifié via Nginx /smartrent-photos/)
       - "9001:9001"   # Console web (http://<IP_VM>:9001) — à fermer publiquement en prod (NSG/ufw)

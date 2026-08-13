@@ -533,3 +533,12 @@ class ActualiteOut(BaseModel):
     date_maj: datetime
     auteur_nom: Optional[str] = None
     auteur_prenom: Optional[str] = None
+
+
+# ============================================================
+# Formulaire de contact public (landing page)
+# ============================================================
+class ContactCreate(BaseModel):
+    nom: str = Field(..., min_length=1, max_length=100)
+    email: EmailStr
+    message: str = Field(..., min_length=1, max_length=5000)

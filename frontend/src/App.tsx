@@ -3,6 +3,9 @@ import { AuthProvider } from "./lib/auth";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
+import PublierPage from "./pages/PublierPage";
+import ConditionsGeneralesPage from "./pages/ConditionsGeneralesPage";
+import PolitiqueQualitePage from "./pages/PolitiqueQualitePage";
 import ActualitesPubliquesPage from "./pages/ActualitesPubliquesPage";
 
 import SearchPage from "./pages/client/SearchPage";
@@ -12,6 +15,7 @@ import MessagesPage from "./pages/client/MessagesPage";
 import AvisPage from "./pages/client/AvisPage";
 import FavorisPage from "./pages/client/FavorisPage";
 import ClientReclamationsPage from "./pages/client/ReclamationsPage";
+import ClientPublierPage from "./pages/client/PublierPage";
 
 import OwnerDashboard from "./pages/proprietaire/OwnerDashboard";
 import DemandesPage from "./pages/proprietaire/DemandesPage";
@@ -40,6 +44,9 @@ export default function App() {
           {/* Page d'accueil publique — accessible à tout visiteur, avant connexion/inscription */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/publier" element={<PublierPage />} />
+          <Route path="/conditions-generales-utilisation" element={<ConditionsGeneralesPage />} />
+          <Route path="/politique-qualite" element={<PolitiqueQualitePage />} />
           <Route path="/actualites" element={<ActualitesPubliquesPage />} />
 
           {/* Espace Client */}
@@ -50,6 +57,7 @@ export default function App() {
           <Route path="/client/avis" element={<ProtectedRoute role="client"><AvisPage /></ProtectedRoute>} />
           <Route path="/client/favoris" element={<ProtectedRoute role="client"><FavorisPage /></ProtectedRoute>} />
           <Route path="/client/reclamations" element={<ProtectedRoute role="client"><ClientReclamationsPage /></ProtectedRoute>} />
+          <Route path="/client/publier" element={<ProtectedRoute role="client"><ClientPublierPage /></ProtectedRoute>} />
 
           {/* Espace Propriétaire */}
           <Route path="/proprietaire" element={<ProtectedRoute role="proprietaire"><OwnerDashboard /></ProtectedRoute>} />

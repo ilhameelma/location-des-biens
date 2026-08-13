@@ -4,7 +4,7 @@ import { ArrowLeft, Plus, X, Upload, Trash2 } from "lucide-react";
 import PropertyCard from "../../components/ui/PropertyCard";
 import LocationPicker from "../../components/map/LocationPicker";
 import EstimationWidget from "../../components/ia/EstimationWidget";
-import { api, formatErrorDetail } from "../../lib/api";
+import { api, API_BASE_URL, formatErrorDetail } from "../../lib/api";
 import type { Bien, ProjetImmobilier, TypeBien, TypeTransaction, StatutProjet } from "../../types";
 
 const TYPES: TypeBien[] = ["appartement", "maison", "villa", "bureau", "magasin", "garage", "terrain"];
@@ -134,10 +134,9 @@ export default function ProjetDetailPage() {
         });
         formData.append("bien_id", bienRes.id);
 
-        const token = localStorage.getItem("smartrent_token");
-        const res = await fetch(`http://localhost:8000/api/biens/${bienRes.id}/photos`, {
+        const res = await fetch(`${API_BASE_URL}/biens/${bienRes.id}/photos`, {
           method: "POST",
-          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          credentials: "include",
           body: formData,
         });
         if (!res.ok) {

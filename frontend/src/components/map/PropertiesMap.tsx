@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import { MessageCircle, CalendarPlus } from "lucide-react";
 import type { Bien } from "../../types";
+import { API_BASE_URL } from "../../lib/api";
 
 // --- Correctif icônes Leaflet ---
 // Par défaut, react-leaflet/leaflet référence les icônes via des chemins relatifs
@@ -23,8 +24,6 @@ const defaultIcon = L.icon({
 });
 
 L.Marker.prototype.options.icon = defaultIcon;
-
-const API_BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
 const TYPE_LABELS: Record<string, string> = {
   maison: "Maison",

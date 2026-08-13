@@ -7,7 +7,7 @@ import EstimationWidget from "../../components/ia/EstimationWidget";
 import EquipmentsPicker from "../../components/ui/EquipmentsPicker";
 import { equipementsDisponibles } from "../../lib/equipements";
 import LocationPicker from "../../components/map/LocationPicker";
-import { api, formatErrorDetail } from "../../lib/api";
+import { api, API_BASE_URL, formatErrorDetail } from "../../lib/api";
 import { useAuth } from "../../lib/auth";
 import type { Bien, TypeBien, TypeTransaction } from "../../types";
 
@@ -177,6 +177,8 @@ export default function OwnerDashboard() {
 
       // Étape 2 : uploader les images avec fetch natif (pas api.post)
       // car FormData nécessite un Content-Type auto-généré avec boundary
+      // Étape 2 : uploader les images avec fetch natif (pas api.post)
+      // car FormData nécessite un Content-Type auto-généré avec boundary
       if (selectedImages.length > 0) {
         const formData = new FormData();
         selectedImages.forEach((file, idx) => {
@@ -185,14 +187,11 @@ export default function OwnerDashboard() {
         });
         formData.append("bien_id", bienId);
 
-        const token = localStorage.getItem("smartrent_token");
-        const res = await fetch(`http://localhost:8000/api/biens/${bienId}/photos`, {
+        const res = await fetch(`${API_BASE_URL}/biens/${bienId}/photos`, {
           method: "POST",
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            // NE PAS mettre "Content-Type" ici — le navigateur le génère avec le boundary
-          },
+          credentials: "include", // envoie le cookie httpOnly
           body: formData,
+          // NE PAS mettre "Content-Type" ici — le navigateur le génère avec le boundary
         });
 
         if (!res.ok) {

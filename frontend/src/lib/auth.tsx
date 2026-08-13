@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react";
 import type { Role, Utilisateur } from "../types";
-import { api, tokenStore } from "./api";
+import { api } from "./api";
 
 interface TokenResponse {
   access_token: string;
@@ -53,48 +53,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<Utilisateur | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Au chargement de l'app, si un token existe déjà (session précédente), on le valide
-  // via /auth/me pour restaurer la session sans redemander l'email/mot de passe.
+  // Au chargement de l'app : le token vit désormais dans un cookie httpOnly
+  // (invisible en JavaScript), donc on ne peut plus savoir à l'avance s'il
+  // existe. On tente simplement /auth/me : ça réussit si le cookie est
+  // présent et valide, ça échoue silencieusement sinon (visiteur non connecté).
   useEffect(() => {
-    const token = tokenStore.get();
-    if (!token) {
-      setLoading(false);
-      return;
-    }
     api
       .get<Utilisateur>("/auth/me")
       .then(setUser)
-      .catch(() => tokenStore.clear())
+      .catch(() => setUser(null))
       .finally(() => setLoading(false));
   }, []);
 
   const login = async (email: string, password: string) => {
-    const res = await api.post<TokenResponse>(
-      "/auth/login",
-      { email, password },
-      { auth: false }
-    );
-    tokenStore.set(res.access_token);
+    // Le backend pose le cookie httpOnly via Set-Cookie sur la réponse ;
+    // rien à stocker manuellement côté client.
+    const res = await api.post<TokenResponse>("/auth/login", { email, password });
     setUser(res.user);
     return res.user;
   };
 
   const register = async (payload: RegisterPayload) => {
     // L'inscription ne renvoie plus de token ni de connexion automatique :
-    // le compte doit d'abord être confirmé via le lien reçu par email.
-    return api.post<RegisterResponse>("/auth/register", payload, { auth: false });
+    // le compte doit d'abord être confirmé via le code reçu par email.
+    return api.post<RegisterResponse>("/auth/register", payload);
   };
 
   const resendVerification = async (email: string) => {
-    await api.post<void>("/auth/resend-verification", { email }, { auth: false });
+    await api.post<void>("/auth/resend-verification", { email });
   };
 
   const verifyEmail = async (email: string, code: string) => {
-    await api.post<Utilisateur>("/auth/verify-email", { email, code }, { auth: false });
+    await api.post<Utilisateur>("/auth/verify-email", { email, code });
   };
 
   const logout = () => {
-    tokenStore.clear();
+    // Demande au backend d'effacer le cookie httpOnly (le JS ne peut pas le
+    // lire ni le supprimer lui-même). Best-effort : même si l'appel réseau
+    // échoue, on nettoie l'état local pour ne pas laisser l'UI incohérente.
+    api.post<void>("/auth/logout").catch(() => {});
     setUser(null);
   };
 

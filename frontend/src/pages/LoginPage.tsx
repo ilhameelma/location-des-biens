@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Home, Building2, Key, HardHat, Handshake, ArrowLeft } from "lucide-react";
+import { Home, Building2, Key, HardHat, Handshake, X } from "lucide-react";
 import { useAuth } from "../lib/auth";
 import type { Role } from "../types";
-import Footer from "../components/layout/Footer";
+import SiteFooter from "../components/layout/SiteFooter";
 import logo from "../assets/logo_immo1.png";
 
 const ROLE_CARDS: { role: Role; label: string; icon: typeof Home }[] = [
@@ -22,16 +22,25 @@ const ROLE_CARDS: { role: Role; label: string; icon: typeof Home }[] = [
 const ROLES_PRO: Role[] = ["agence", "promoteur", "conciergerie"];
 
 export default function LoginPage() {
-  const { login, register, resendVerification, verifyEmail } = useAuth();
+  const { user, login, register, resendVerification, verifyEmail } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   // La landing page peut renvoyer directement sur l'onglet "Inscription"
   // via le lien /login?mode=register (bouton "Inscription" du header public).
+  // Le bouton global "Publier une annonce" (PublierAnnonceButton.tsx) va plus
+  // loin : il ajoute aussi ?role=... pour présélectionner directement le bon
+  // profil (agence/promoteur/conciergerie/propriétaire) — évite qu'un visiteur
+  // publie une annonce en créant sans s'en rendre compte un compte "Client"
+  // (carte sélectionnée par défaut jusqu'ici).
+  const roleParam = searchParams.get("role") as Role | null;
+  const roleParamValide: Role | null =
+    roleParam && ROLE_CARDS.some((c) => c.role === roleParam) ? roleParam : null;
+
   const [mode, setMode] = useState<"login" | "register">(
-    searchParams.get("mode") === "register" ? "register" : "login"
+    searchParams.get("mode") === "register" || roleParamValide ? "register" : "login"
   );
-  const [role, setRole] = useState<Role>("client");
+  const [role] = useState<Role>(roleParamValide ?? "client");
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
   const [email, setEmail] = useState("");
@@ -139,21 +148,23 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[var(--color-ink)] px-3 py-6 sm:px-4 sm:py-10">
+    <div className="flex min-h-screen flex-col bg-[var(--color-ink)]">
+      <div className="flex flex-1 items-center justify-center px-3 py-6 sm:px-4 sm:py-10">
       <div className="w-full max-w-md">
-        <Link
-          to="/"
-          className="mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--color-paper-2)] transition-colors hover:text-white"
-        >
-          <ArrowLeft size={15} />
-          Retour à l'accueil
-        </Link>
-
         {inscriptionEnAttente ? (
-          <div className="rounded-lg bg-[var(--color-card)] p-5 text-center shadow-xl sm:p-8">
-            <div className="mb-6 flex justify-center">
+          <div className="relative rounded-lg bg-[var(--color-card)] p-5 text-center shadow-xl sm:p-8">
+            <button
+              type="button"
+              onClick={() => navigate(user ? `/${user.role}` : "/")}
+              aria-label={user ? "Annuler et retourner à mon espace" : "Annuler et retourner à l'accueil"}
+              title={user ? "Annuler et retourner à mon espace" : "Annuler et retourner à l'accueil"}
+              className="absolute right-3 top-3 rounded-full p-1.5 text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-paper-2)] hover:text-[var(--color-ink)]"
+            >
+              <X size={18} />
+            </button>
+            <Link to="/" className="mb-6 flex justify-center" aria-label="Retour à l'accueil">
               <img src={logo} alt="ImmoVision" className="h-24 w-auto object-contain" />
-            </div>
+            </Link>
             <h2 className="mb-2 text-base font-semibold text-[var(--color-ink)]">
               Entrez votre code de vérification
             </h2>
@@ -219,16 +230,25 @@ export default function LoginPage() {
             </button>
           </div>
         ) : (
-        <form onSubmit={handleSubmit} className="rounded-lg bg-[var(--color-card)] p-5 shadow-xl sm:p-8">
+        <form onSubmit={handleSubmit} className="relative rounded-lg bg-[var(--color-card)] p-5 shadow-xl sm:p-8">
+          <button
+            type="button"
+            onClick={() => navigate(user ? `/${user.role}` : "/")}
+            aria-label={user ? "Annuler et retourner à mon espace" : "Annuler et retourner à l'accueil"}
+            title={user ? "Annuler et retourner à mon espace" : "Annuler et retourner à l'accueil"}
+            className="absolute right-3 top-3 rounded-full p-1.5 text-[var(--color-ink-3)] transition-colors hover:bg-[var(--color-paper-2)] hover:text-[var(--color-ink)]"
+          >
+            <X size={18} />
+          </button>
           {/* Logo */}
 
-  <div className="mb-6 flex justify-center">
+  <Link to="/" className="mb-6 flex justify-center" aria-label="Retour à l'accueil">
     <img
       src={logo}
       alt="ImmoVision"
       className="h-24 w-auto object-contain"
     />
-  </div>
+  </Link>
 
           <div className="mb-5 flex gap-1 rounded-md bg-[var(--color-paper-2)] p-1">
             <button
@@ -253,25 +273,27 @@ export default function LoginPage() {
 
           {mode === "register" && (
             <>
-              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                {ROLE_CARDS.map((c) => (
-                  <button
-                    type="button"
-                    key={c.role}
-                    onClick={() => setRole(c.role)}
-                    className={`flex flex-col items-center gap-1.5 rounded-md border p-2.5 text-center transition-colors ${
-                      role === c.role
-                        ? "border-[var(--color-brass)] bg-[#f4e9df]"
-                        : "border-[var(--color-line)] hover:border-[var(--color-ink-3)]"
-                    }`}
+              {roleParamValide && (
+                <div className="mb-3 flex items-center justify-between rounded-md border border-[var(--color-brass)] bg-[#f4e9df] px-3 py-2.5">
+                  <span className="flex items-center gap-2 text-sm font-medium text-[var(--color-ink)]">
+                    {(() => {
+                      const c = ROLE_CARDS.find((c) => c.role === roleParamValide)!;
+                      return (
+                        <>
+                          <c.icon size={16} className="text-[var(--color-brass-deep)]" />
+                          Inscription — {c.label}
+                        </>
+                      );
+                    })()}
+                  </span>
+                  <Link
+                    to="/publier"
+                    className="text-xs font-medium text-[var(--color-ink-2)] underline hover:text-[var(--color-ink)]"
                   >
-                    <c.icon size={16} className="text-[var(--color-ink)]" />
-                    <span className="text-[11px] font-medium leading-tight text-[var(--color-ink)]">
-                      {c.label}
-                    </span>
-                  </button>
-                ))}
-              </div>
+                    Changer
+                  </Link>
+                </div>
+              )}
               <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs font-medium text-[var(--color-ink-2)]">Prénom</label>
@@ -384,10 +406,9 @@ export default function LoginPage() {
         </form>
         )}
 
-        <div className="mt-6">
-          <Footer variant="dark" />
-        </div>
       </div>
+      </div>
+      <SiteFooter />
     </div>
   );
 }

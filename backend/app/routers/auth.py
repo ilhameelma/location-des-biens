@@ -2,7 +2,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from .. import models, schemas
 from ..config import settings
 from ..database import get_db
@@ -15,6 +15,8 @@ from ..security import (
     verify_password,
     create_access_token,
     generate_otp_code,
+    hash_otp,      # ← à ajouter
+    verify_otp, 
 )
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -27,7 +29,7 @@ def _envoyer_email_verification(user: models.Utilisateur) -> None:
     SMTP n'empêche pas l'inscription de se terminer, mais l'utilisateur ne
     pourra se connecter qu'après avoir demandé un renvoi (/auth/resend-verification)."""
     code = generate_otp_code()
-    user.email_verification_token = code
+    user.email_verification_token = hash_otp(code)   # au lieu de code en clair
     user.email_verification_expire = datetime.utcnow() + timedelta(
         minutes=settings.email_verification_code_expire_minutes
     )
@@ -107,7 +109,7 @@ def verify_email(payload: schemas.VerifyEmailRequest, db: Session = Depends(get_
     if not user or user.email_verifie:
         raise erreur_code
 
-    if not user.email_verification_token or user.email_verification_token != payload.code:
+    if not user.email_verification_token or not verify_otp(payload.code, user.email_verification_token):
         raise erreur_code
 
     if user.email_verification_expire and user.email_verification_expire < datetime.utcnow():
@@ -137,7 +139,7 @@ def resend_verification(payload: schemas.ResendVerificationRequest, db: Session 
 
 
 @router.post("/login", response_model=schemas.TokenResponse)
-def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
+def login(payload: schemas.LoginRequest, response: Response, db: Session = Depends(get_db)):
     user = db.query(models.Utilisateur).filter(models.Utilisateur.email == payload.email).first()
     if not user or not verify_password(payload.password, user.mot_de_passe_hash):
         raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
@@ -150,12 +152,36 @@ def login(payload: schemas.LoginRequest, db: Session = Depends(get_db)):
         )
 
     token = create_access_token(subject=str(user.id), role=user.role)
+
+    # Cookie httpOnly : inaccessible en JavaScript côté navigateur (protection
+    # contre le vol de session par XSS), contrairement à l'ancien stockage en
+    # localStorage. secure=True exige HTTPS (à activer via cookie_secure=True
+    # dans backend/.env une fois sur la VM avec Let's Encrypt) ; en HTTP local
+    # (localhost simple), garder cookie_secure=False sinon le navigateur
+    # rejette silencieusement le cookie.
+    response.set_cookie(
+        key=settings.auth_cookie_name,
+        value=token,
+        httponly=True,
+        secure=settings.cookie_secure,
+        samesite=settings.cookie_samesite,
+        max_age=settings.jwt_expire_minutes * 60,
+        path="/",
+    )
+
+    # access_token reste présent dans le corps pour compatibilité (Swagger,
+    # scripts, tests Postman) — le frontend web n'en a plus besoin, le cookie
+    # suffit, mais rien ne casse pour ceux qui l'utilisaient encore.
     return schemas.TokenResponse(access_token=token, role=user.role, user=user)
 
 
-@router.get("/me", response_model=schemas.UtilisateurOut)
-def me(current_user: models.Utilisateur = Depends(get_current_user)):
-    return current_user
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+def logout(response: Response):
+    """Efface le cookie de session — le token JWT lui-même reste valide
+    jusqu'à expiration naturelle (stateless), mais n'est plus envoyé par
+    le navigateur une fois le cookie supprimé."""
+    response.delete_cookie(key=settings.auth_cookie_name, path="/")
+    return None
 
 
 @router.patch("/me", response_model=schemas.UtilisateurOut)
