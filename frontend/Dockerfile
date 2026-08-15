@@ -9,8 +9,16 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 
+# Chromium nécessaire à react-snap (pré-rendu de la landing page pour les
+# bots IA/SEO). On utilise le Chromium système plutôt que de laisser
+# Puppeteer télécharger le sien (échoue souvent sur Alpine) — d'où ces
+# variables d'env AVANT le npm ci.
+RUN apk add --no-cache chromium
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true \
+    PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install
 
 COPY . .
 
