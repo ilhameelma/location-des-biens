@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://immovision.ma/sitemap.xml
