@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "postbuild": "react-snap",
     "lint": "oxlint",
     "preview": "vite preview"
   },
@@ -27,8 +28,17 @@
     "autoprefixer": "^10.5.4",
     "oxlint": "^1.71.0",
     "postcss": "^8.5.20",
+    "react-snap": "^1.23.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.1.1"
+  },
+  "reactSnap": {
+    "source": "dist",
+    "destination": "dist",
+    "include": ["/", "/faq"],
+    "skipThirdPartyRequests": true,
+    "puppeteerArgs": ["--no-sandbox", "--disable-setuid-sandbox"],
+    "puppeteerExecutablePath": "/usr/bin/chromium-browser"
   }
 }

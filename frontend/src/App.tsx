@@ -7,6 +7,7 @@ import PublierPage from "./pages/PublierPage";
 import ConditionsGeneralesPage from "./pages/ConditionsGeneralesPage";
 import PolitiqueQualitePage from "./pages/PolitiqueQualitePage";
 import ActualitesPubliquesPage from "./pages/ActualitesPubliquesPage";
+import FaqPage from "./pages/FaqPage";
 
 import SearchPage from "./pages/client/SearchPage";
 import ReservationsPage from "./pages/client/ReservationsPage";
@@ -48,6 +49,7 @@ export default function App() {
           <Route path="/conditions-generales-utilisation" element={<ConditionsGeneralesPage />} />
           <Route path="/politique-qualite" element={<PolitiqueQualitePage />} />
           <Route path="/actualites" element={<ActualitesPubliquesPage />} />
+          <Route path="/faq" element={<FaqPage />} />
 
           {/* Espace Client */}
           <Route path="/client" element={<ProtectedRoute role="client"><SearchPage /></ProtectedRoute>} />
