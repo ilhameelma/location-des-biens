@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import PublierAnnonceButton from "../publish/PublierAnnonceButton";
@@ -26,12 +26,30 @@ const NAV_LINKS = [
  */
 export default function SiteHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 12);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-[var(--color-line)] bg-[var(--color-paper)]/95 backdrop-blur">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-1.5">
+    <header
+      className={`sticky top-0 z-40 border-b border-[var(--color-line)] bg-[var(--color-paper)]/95 backdrop-blur transition-[padding] duration-300 ${
+        scrolled ? "py-0" : "py-1"
+      }`}
+    >
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-1">
         <Link to="/" className="flex items-center gap-2.5" aria-label="Retour à l'accueil">
-          <img src={logo} alt="ImmoVision" className="h-28 w-auto" />
+          <img
+            src={logo}
+            alt="ImmoVision"
+            className={`w-auto transition-[height] duration-300 ${
+              scrolled ? "h-10" : "h-28"
+            }`}
+          />
           <span className="font-display text-xl font-semibold text-[var(--color-ink)]">
             
           </span>
