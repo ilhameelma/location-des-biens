@@ -7,7 +7,7 @@ import logo from "../../assets/logo_immo1.png";
 const NAV_LINKS = [
   { href: "#services", label: "Services" },
   { href: "#catalogue", label: "Catalogue" },
-  { href: "#actualites", label: "Actualités" },
+  { href: "blog", label: "Blog" },
   { href: "#apropos", label: "À propos" },
   { href: "#contact", label: "Contact" },
   { href: "faq", label: "FAQ" },

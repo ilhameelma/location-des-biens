@@ -1,22 +1,25 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowLeft, ArrowRight, CalendarDays, Newspaper } from "lucide-react";
+import { Link, useSearchParams } from "react-router-dom";
+import { ArrowRight, CalendarDays, Newspaper } from "lucide-react";
 import { api } from "../lib/api";
 import { CATEGORIES_ARTICLE, LABEL_CATEGORIE, type Actualite, type CategorieArticle } from "../types";
 import { resolvePhotoUrl } from "../components/ui/ImageCarousel";
 import { stripHtml } from "../lib/htmlUtils";
+import SiteHeader from "../components/layout/SiteHeader";
 import SiteFooter from "../components/layout/SiteFooter";
-import PublierAnnonceButton from "../components/publish/PublierAnnonceButton";
-import logo from "../assets/logo_immo1.png";
 
 /**
  * Page publique listant l'intégralité des articles de blog publiés —
- * accessible à tout visiteur, connecté ou non, depuis le lien "Voir tous
- * les articles" de la landing page. Chaque carte renvoie vers la fiche
- * article dédiée (/blog/:slug), pas de contenu complet ici.
+ * accessible à tout visiteur, connecté ou non, depuis le lien "Blog" du
+ * header ou "Voir tous les articles" de la landing page. Chaque carte
+ * renvoie vers la fiche article dédiée (/blog/:slug), pas de contenu
+ * complet ici.
+ *
+ * Utilise SiteHeader (nav complète, identique à la landing page) plutôt
+ * qu'un mini-header dédié, pour que la navigation ne change jamais en
+ * passant d'une page publique à l'autre.
  */
 export default function BlogPage() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const categorieActive = searchParams.get("categorie") as CategorieArticle | null;
 
@@ -51,28 +54,7 @@ export default function BlogPage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-paper)]">
-      <header className="sticky top-0 z-40 border-b border-[var(--color-line)] bg-[var(--color-paper)]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3">
-          <Link to="/" className="flex items-center gap-2.5">
-            <img src={logo} alt="ImmoVision" className="h-11 w-auto" />
-            <span className="font-display text-xl font-semibold text-[var(--color-ink)]">
-              ImmoVision
-            </span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <PublierAnnonceButton variant="outline" className="hidden sm:inline-flex" />
-            <PublierAnnonceButton variant="icon" className="sm:hidden" />
-            <button
-              type="button"
-              onClick={() => navigate("/")}
-              className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink-2)] hover:text-[var(--color-brass-deep)]"
-            >
-              <ArrowLeft size={15} />
-              Retour à l'accueil
-            </button>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-5xl px-6 py-16">
         <span className="tick-rule inline-block font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-brass-deep)]">

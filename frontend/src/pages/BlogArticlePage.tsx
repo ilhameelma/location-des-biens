@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { ArrowLeft, CalendarDays } from "lucide-react";
 import { api } from "../lib/api";
 import type { Actualite } from "../types";
 import { LABEL_CATEGORIE } from "../types";
 import { resolvePhotoUrl } from "../components/ui/ImageCarousel";
 import { stripHtml } from "../lib/htmlUtils";
+import SiteHeader from "../components/layout/SiteHeader";
 import SiteFooter from "../components/layout/SiteFooter";
-import PublierAnnonceButton from "../components/publish/PublierAnnonceButton";
-import logo from "../assets/logo_immo1.png";
 
 /**
  * Fiche article publique (/blog/:slug) — contenu complet, rendu depuis le
@@ -20,10 +19,12 @@ import logo from "../assets/logo_immo1.png";
  * Titre de l'onglet + meta description mis à jour dynamiquement pour le
  * référencement (chaque article a une URL et des métadonnées propres,
  * contrairement à l'ancien `/actualites#id`).
+ *
+ * Utilise SiteHeader (nav complète, identique à la landing page et à
+ * /blog) plutôt qu'un mini-header dédié.
  */
 export default function BlogArticlePage() {
   const { slug } = useParams<{ slug: string }>();
-  const navigate = useNavigate();
   const [article, setArticle] = useState<Actualite | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
@@ -67,30 +68,17 @@ export default function BlogArticlePage() {
 
   return (
     <div className="min-h-screen bg-[var(--color-paper)]">
-      <header className="sticky top-0 z-40 border-b border-[var(--color-line)] bg-[var(--color-paper)]/95 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-between px-6 py-3">
-          <Link to="/" className="flex items-center gap-2.5">
-            <img src={logo} alt="ImmoVision" className="h-11 w-auto" />
-            <span className="font-display text-xl font-semibold text-[var(--color-ink)]">
-              ImmoVision
-            </span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <PublierAnnonceButton variant="outline" className="hidden sm:inline-flex" />
-            <PublierAnnonceButton variant="icon" className="sm:hidden" />
-            <button
-              type="button"
-              onClick={() => navigate("/blog")}
-              className="flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink-2)] hover:text-[var(--color-brass-deep)]"
-            >
-              <ArrowLeft size={15} />
-              Retour au blog
-            </button>
-          </div>
-        </div>
-      </header>
+      <SiteHeader />
 
       <main className="mx-auto max-w-3xl px-6 py-16">
+        <Link
+          to="/blog"
+          className="mb-8 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-ink-2)] hover:text-[var(--color-brass-deep)]"
+        >
+          <ArrowLeft size={15} />
+          Retour au blog
+        </Link>
+
         {loading && (
           <div className="space-y-4">
             <div className="h-56 animate-pulse rounded-lg bg-[var(--color-paper-2)]" />
@@ -105,13 +93,6 @@ export default function BlogArticlePage() {
             <p className="mt-2 text-sm text-[var(--color-ink-3)]">
               Cet article n'existe pas ou n'est plus publié.
             </p>
-            <Link
-              to="/blog"
-              className="mt-6 inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-brass-deep)] hover:underline"
-            >
-              <ArrowLeft size={14} />
-              Retour au blog
-            </Link>
           </div>
         )}
 
