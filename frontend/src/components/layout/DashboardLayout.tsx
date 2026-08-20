@@ -60,6 +60,7 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: "/agence/paiements", label: "Paiements", icon: Wallet },
     { to: "/agence/messages", label: "Messagerie", icon: MessageSquare },
     { to: "/agence/avis", label: "Avis clients", icon: Star },
+    { to: "/agence/blog", label: "Blog", icon: Newspaper },
   ],
 
   promoteur: [
@@ -84,7 +85,7 @@ const NAV_BY_ROLE: Record<Role, NavItem[]> = {
     { to: "/admin/utilisateurs", label: "Utilisateurs", icon: Users },
     { to: "/admin/biens", label: "Annonces", icon: Building2 },
     { to: "/admin/reclamations", label: "Réclamations", icon: ShieldAlert },
-    { to: "/admin/actualites", label: "Actualités", icon: Newspaper },
+    { to: "/admin/actualites", label: "Blog", icon: Newspaper },
   ],
 };
 

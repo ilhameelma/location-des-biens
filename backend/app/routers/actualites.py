@@ -264,6 +264,24 @@ def update_actualite(
     return _enrich(db, [actualite])[0]
 
 
+@router.post("/images", response_model=dict)
+async def upload_image_contenu(
+    image: UploadFile = File(...),
+    current_user: models.Utilisateur = Depends(require_role("admin", "agence")),
+):
+    """Upload d'une image insérée DANS le corps d'un article (éditeur riche,
+    plusieurs images possibles) — indépendant de tout article existant,
+    contrairement à `/{id}/image` qui gère l'image de couverture d'un
+    article déjà créé. Retourne directement l'URL publique à insérer dans
+    le contenu HTML."""
+    content = await image.read()
+    content_type = image.content_type
+    ext = ".png" if content_type == "image/png" else ".jpg"
+    object_name = f"actualites/contenu/{uuid.uuid4().hex}{ext}"
+    url = storage.upload_photo(object_name, content, content_type)
+    return {"url": url}
+
+
 @router.post("/{actualite_id}/image", response_model=schemas.ActualiteOut)
 async def upload_image(
     actualite_id: uuid.UUID,

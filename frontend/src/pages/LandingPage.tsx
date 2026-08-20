@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { api } from "../lib/api";
 import type { Actualite, Bien } from "../types";
+import { stripHtml } from "../lib/htmlUtils";
 
 /** Métriques publiques calculées côté back-end (GET /stats/publiques). */
 interface StatsPubliques {
@@ -483,24 +484,24 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ================= ACTUALITÉS ================= */}
+      {/* ================= BLOG ================= */}
       {(loadingActualites || actualites.length > 0) && (
         <section id="actualites" className="border-t border-[var(--color-line)] bg-[var(--color-card)] py-20">
           <div className="mx-auto max-w-7xl px-4">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <span className="tick-rule inline-block font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-brass-deep)]">
-                  Actualités
+                  Blog
                 </span>
                 <h2 className="mt-4 font-display text-3xl text-[var(--color-ink)]">
-                  Les dernières nouvelles d'ImmoVision
+                  Les derniers articles d'ImmoVision
                 </h2>
               </div>
               <Link
-                to="/actualites"
+                to="/blog"
                 className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--color-brass-deep)] hover:underline"
               >
-                Voir toutes les actualités
+                Voir tous les articles
                 <ArrowRight size={15} />
               </Link>
             </div>
@@ -544,10 +545,10 @@ export default function LandingPage() {
                         {a.titre}
                       </h3>
                       <p className="line-clamp-3 text-sm leading-relaxed text-[var(--color-ink-2)]">
-                        {a.contenu}
+                        {a.extrait || stripHtml(a.contenu_html)}
                       </p>
                       <Link
-                        to={`/actualites#${a.id}`}
+                        to={`/blog/${a.slug}`}
                         className="inline-flex items-center gap-1 pt-1 text-sm font-medium text-[var(--color-brass-deep)] hover:underline"
                       >
                         Lire la suite

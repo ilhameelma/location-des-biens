@@ -6,7 +6,8 @@ import LoginPage from "./pages/LoginPage";
 import PublierPage from "./pages/PublierPage";
 import ConditionsGeneralesPage from "./pages/ConditionsGeneralesPage";
 import PolitiqueQualitePage from "./pages/PolitiqueQualitePage";
-import ActualitesPubliquesPage from "./pages/ActualitesPubliquesPage";
+import BlogPage from "./pages/BlogPage";
+import BlogArticlePage from "./pages/BlogArticlePage";
 import FaqPage from "./pages/FaqPage";
 
 import SearchPage from "./pages/client/SearchPage";
@@ -23,6 +24,8 @@ import DemandesPage from "./pages/proprietaire/DemandesPage";
 import OwnerPaiementsPage from "./pages/proprietaire/OwnerPaiementsPage";
 import OwnerMessagesPage from "./pages/proprietaire/OwnerMessagesPage";
 import OwnerAvisPage from "./pages/proprietaire/AvisPage";
+
+import AgenceBlogPage from "./pages/agence/BlogPage";
 
 import ProjetsPage from "./pages/promoteur/ProjetsPage";
 import ProjetDetailPage from "./pages/promoteur/ProjetDetailPage";
@@ -48,7 +51,12 @@ export default function App() {
           <Route path="/publier" element={<PublierPage />} />
           <Route path="/conditions-generales-utilisation" element={<ConditionsGeneralesPage />} />
           <Route path="/politique-qualite" element={<PolitiqueQualitePage />} />
-          <Route path="/actualites" element={<ActualitesPubliquesPage />} />
+          <Route path="/blog" element={<BlogPage />} />
+          <Route path="/blog/:slug" element={<BlogArticlePage />} />
+          {/* Ancienne URL "/actualites" (pré-existante, potentiellement déjà
+              indexée par les moteurs de recherche) — redirigée vers /blog
+              plutôt que supprimée, pour ne pas casser un lien externe. */}
+          <Route path="/actualites" element={<Navigate to="/blog" replace />} />
           <Route path="/faq" element={<FaqPage />} />
 
           {/* Espace Client */}
@@ -77,6 +85,7 @@ export default function App() {
           <Route path="/agence/paiements" element={<ProtectedRoute role="agence"><OwnerPaiementsPage /></ProtectedRoute>} />
           <Route path="/agence/messages" element={<ProtectedRoute role="agence"><OwnerMessagesPage /></ProtectedRoute>} />
           <Route path="/agence/avis" element={<ProtectedRoute role="agence"><OwnerAvisPage /></ProtectedRoute>} />
+          <Route path="/agence/blog" element={<ProtectedRoute role="agence"><AgenceBlogPage /></ProtectedRoute>} />
 
           {/* Espace Conciergerie — idem, formulaire de publication avec
               mandant_nom obligatoire (voir OwnerDashboard.tsx). */}

@@ -224,17 +224,42 @@ export interface Favori {
   date_creation: string;
 }
 
+export const CATEGORIES_ARTICLE = [
+  "actualite",
+  "marche_immobilier",
+  "conseils_locataires",
+  "conseils_proprietaires",
+  "guide_juridique",
+  "vie_pratique",
+] as const;
+
+export type CategorieArticle = (typeof CATEGORIES_ARTICLE)[number];
+
+export const LABEL_CATEGORIE: Record<CategorieArticle, string> = {
+  actualite: "Actualité",
+  marche_immobilier: "Marché immobilier",
+  conseils_locataires: "Conseils locataires",
+  conseils_proprietaires: "Conseils propriétaires",
+  guide_juridique: "Guide juridique",
+  vie_pratique: "Vie pratique",
+};
+
 export interface Actualite {
   id: string;
   auteur_id: string;
   titre: string;
-  contenu: string;
+  slug: string;
+  extrait?: string | null;
+  categorie: CategorieArticle;
+  contenu_html: string;
   image_url?: string | null;
   publie: boolean;
   date_creation: string;
   date_maj: string;
   auteur_nom?: string | null;
   auteur_prenom?: string | null;
+  auteur_role?: string | null;
+  auteur_affichage: string;
 }
 
 // Historique de recherche (page de recherche client)
