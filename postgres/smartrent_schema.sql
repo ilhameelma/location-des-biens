@@ -309,11 +309,18 @@ CREATE INDEX idx_recherche_historique_client_date ON recherche_historique(client
 -- Table : actualite (actualités publiées par un admin, affichées
 -- sur la page d'accueil publique)
 -- ============================================================
+-- Articles du blog ImmoVision (admin ou agence) : titre, slug (URL SEO),
+-- extrait (résumé/meta description), catégorie, contenu riche sanitizé.
 CREATE TABLE actualite (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     auteur_id           UUID NOT NULL REFERENCES utilisateur(id),
     titre               VARCHAR(200) NOT NULL,
-    contenu             TEXT NOT NULL,
+    slug                VARCHAR(220),
+    extrait             VARCHAR(300),
+    categorie           VARCHAR(50) NOT NULL DEFAULT 'actualite'
+                        CHECK (categorie IN ('actualite', 'marche_immobilier', 'conseils_locataires',
+                                              'conseils_proprietaires', 'guide_juridique', 'vie_pratique')),
+    contenu_html        TEXT NOT NULL,
     image_url           TEXT,
     publie              BOOLEAN NOT NULL DEFAULT true,
     date_creation       TIMESTAMP NOT NULL DEFAULT now(),
@@ -321,6 +328,8 @@ CREATE TABLE actualite (
 );
 
 CREATE INDEX idx_actualite_publie_date ON actualite(publie, date_creation DESC);
+CREATE UNIQUE INDEX idx_actualite_slug ON actualite(slug) WHERE slug IS NOT NULL;
+CREATE INDEX idx_actualite_categorie ON actualite(categorie, publie, date_creation DESC);
 
 -- Fin du script
 -- ============================================================

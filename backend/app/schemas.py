@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, date
 from typing import Literal, Optional
 
-from pydantic import BaseModel, EmailStr, ConfigDict, Field, model_validator
+from pydantic import BaseModel, EmailStr, ConfigDict, Field, model_validator, field_validator
 
 # Rôles "annonceurs" professionnels (agence/promoteur/conciergerie), en plus du
 # propriétaire particulier — voir ROLES_ANNONCEURS dans deps.py pour le
@@ -510,15 +510,43 @@ class NotificationOut(BaseModel):
 
 
 # ---------- Actualité (publiées par un admin, affichées sur la landing page) ----------
+CATEGORIES_ARTICLE = (
+    "actualite",
+    "marche_immobilier",
+    "conseils_locataires",
+    "conseils_proprietaires",
+    "guide_juridique",
+    "vie_pratique",
+)
+
+
 class ActualiteCreate(BaseModel):
     titre: str = Field(min_length=1, max_length=200)
-    contenu: str = Field(min_length=1)
+    contenu_html: str = Field(min_length=1)
+    extrait: Optional[str] = Field(default=None, max_length=300)
+    categorie: str = Field(default="actualite")
+
+    @field_validator("categorie")
+    @classmethod
+    def _valider_categorie(cls, v: str) -> str:
+        if v not in CATEGORIES_ARTICLE:
+            raise ValueError(f"Catégorie invalide. Attendu : {', '.join(CATEGORIES_ARTICLE)}")
+        return v
 
 
 class ActualiteUpdate(BaseModel):
     titre: Optional[str] = Field(default=None, min_length=1, max_length=200)
-    contenu: Optional[str] = Field(default=None, min_length=1)
+    contenu_html: Optional[str] = Field(default=None, min_length=1)
+    extrait: Optional[str] = Field(default=None, max_length=300)
+    categorie: Optional[str] = None
     publie: Optional[bool] = None
+
+    @field_validator("categorie")
+    @classmethod
+    def _valider_categorie(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in CATEGORIES_ARTICLE:
+            raise ValueError(f"Catégorie invalide. Attendu : {', '.join(CATEGORIES_ARTICLE)}")
+        return v
 
 
 class ActualiteOut(BaseModel):
@@ -526,13 +554,22 @@ class ActualiteOut(BaseModel):
     id: uuid.UUID
     auteur_id: uuid.UUID
     titre: str
-    contenu: str
+    slug: str
+    extrait: Optional[str] = None
+    categorie: str
+    contenu_html: str
     image_url: Optional[str] = None
     publie: bool
     date_creation: datetime
     date_maj: datetime
     auteur_nom: Optional[str] = None
     auteur_prenom: Optional[str] = None
+    auteur_role: Optional[str] = None
+    # Nom affiché publiquement : "ImmoVision" pour un article admin, la
+    # raison sociale de l'agence pour un article publié par une agence
+    # (visibilité/crédibilité voulue pour elle) — calculé côté serveur,
+    # voir _enrich() dans routers/actualites.py.
+    auteur_affichage: str
 
 
 # ============================================================

@@ -357,20 +357,39 @@ class Notification(Base):
 
 
 class Actualite(Base):
-    """Actualités publiées par un administrateur, affichées sur la page
-    d'accueil publique (landing page) — annonces, nouveautés de la
-    plateforme, communiqués, etc."""
+    """Articles du blog ImmoVision — publiés par un admin (contenu éditorial
+    officiel) ou par une agence (visibilité/crédibilité pour l'agence),
+    affichés sur la page d'accueil publique (aperçu) et sur /blog (liste +
+    fiche par slug).
+
+    Anciennement "actualités" simple texte ; upgradé en vrai blog : slug
+    (URL SEO), extrait (résumé/meta description), catégorie, contenu HTML
+    riche (sanitizé côté serveur avant stockage, voir routers/actualites.py).
+    """
 
     __tablename__ = "actualite"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=gen_uuid)
     auteur_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("utilisateur.id"))
     titre: Mapped[str] = mapped_column(String(200))
-    contenu: Mapped[str] = mapped_column(Text)
+    # URL propre (ex. "nouvelle-fonctionnalite-recherche"), unique, générée
+    # à la création à partir du titre — voir _slugify()/_unique_slug() dans
+    # routers/actualites.py. Nullable pour compatibilité avec les lignes
+    # créées avant cette évolution (rétro-remplies à la volée si NULL).
+    slug: Mapped[str | None] = mapped_column(String(220), nullable=True)
+    # Résumé court affiché sur les cartes/aperçus et utilisé comme meta
+    # description SEO ; optionnel (dérivé du contenu si absent, côté front).
+    extrait: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # actualite | marche_immobilier | conseils_locataires |
+    # conseils_proprietaires | guide_juridique | vie_pratique
+    categorie: Mapped[str] = mapped_column(String(50), default="actualite")
+    # Contenu riche (éditeur type CMS côté front) — stocké en HTML déjà
+    # sanitizé (nh3) avant écriture, jamais de HTML brut non filtré en base.
+    contenu_html: Mapped[str] = mapped_column(Text)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # Permet de dépublier une actualité sans la supprimer (retirée de la
-    # landing page mais conservée côté admin) — même logique que `statut`
-    # sur `bien`.
+    # Permet de dépublier un article sans le supprimer (retiré de la landing
+    # page/blog mais conservé côté gestion) — même logique que `statut` sur
+    # `bien`.
     publie: Mapped[bool] = mapped_column(Boolean, default=True)
     date_creation: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     date_maj: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
